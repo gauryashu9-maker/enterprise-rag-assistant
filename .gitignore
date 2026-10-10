@@ -1,0 +1,18 @@
+# Build
+target/
+build/
+dist/
+node_modules/
+# IDE
+.idea/
+*.iml
+.vscode/
+# Secrets & local config -- NEVER commit these
+.env
+*.pem
+application-local.yml
+# OS / misc
+.DS_Store
+Thumbs.db
+*.log
+HELP.md
