@@ -1,0 +1,63 @@
+package com.axlero.ragassistant.services;
+
+import com.axlero.ragassistant.dto.Citation;
+import com.axlero.ragassistant.dto.RagAnswer;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.document.Document;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.stereotype.Service;
+
+@Service
+public class RagServiceImpl implements RagService {
+
+    static final String NO_ANSWER = "I don't have that information in the uploaded documents.";
+    private static final int SNIPPET_LENGTH = 200;
+
+    private final RetrievalService retrievalService;
+    private final ChatClient chatClient;
+    private final PromptTemplate promptTemplate;
+
+    public RagServiceImpl(RetrievalService retrievalService,
+                          ChatClient chatClient,
+                          @Value("classpath:prompts/rag-prompt.st") Resource promptResource) {
+        this.retrievalService = retrievalService;
+        this.chatClient = chatClient;
+        this.promptTemplate = PromptTemplate.builder().resource(promptResource).build();
+    }
+
+    @Override
+    public RagAnswer answer(String question) {
+        List<Document> chunks = retrievalService.retrieve(question);
+        if (chunks.isEmpty()) {
+            // Nothing relevant found: skip the LLM call entirely (cheaper, and it cannot hallucinate).
+            return new RagAnswer(NO_ANSWER, List.of());
+        }
+
+        String context = chunks.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n\n---\n\n"));
+        String prompt = promptTemplate.render(Map.of("context", context, "question", question));
+
+        String reply = chatClient.prompt().user(prompt).call().content();
+        return new RagAnswer(reply, toCitations(chunks));
+    }
+
+    private List<Citation> toCitations(List<Document> chunks) {
+        return chunks.stream().map(this::toCitation).toList();
+    }
+
+    private Citation toCitation(Document doc) {
+        Map<String, Object> meta = doc.getMetadata();
+        String name = String.valueOf(meta.getOrDefault("filename", "unknown"));
+        Object rawPage = meta.getOrDefault("page", meta.get("page_number"));
+        Integer page = rawPage instanceof Number n ? n.intValue() : null;
+        String text = doc.getText() == null ? "" : doc.getText();
+        String snippet = text.length() <= SNIPPET_LENGTH ? text : text.substring(0, SNIPPET_LENGTH) + "...";
+        return new Citation(name, page, snippet);
+    }
+}
