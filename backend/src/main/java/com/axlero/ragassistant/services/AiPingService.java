@@ -1,6 +1,7 @@
 package com.axlero.ragassistant.services;
 
 import com.axlero.ragassistant.dto.PingResponse;
+import com.axlero.ragassistant.exceptions.ServiceUnavailableException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
@@ -15,7 +16,11 @@ public class AiPingService {
     }
 
     public PingResponse ping(String message) {
-        String reply = chatClient.prompt().user(message).call().content();
-        return new PingResponse(reply);
+        try {
+            String reply = chatClient.prompt().user(message).call().content();
+            return new PingResponse(reply);
+        } catch (RuntimeException exception) {
+            throw new ServiceUnavailableException("AI service is unavailable", exception);
+        }
     }
 }
