@@ -16,3 +16,4 @@ application-local.yml
 Thumbs.db
 *.log
 HELP.md
+venv/
