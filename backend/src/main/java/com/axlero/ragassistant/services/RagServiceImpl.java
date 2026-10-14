@@ -44,6 +44,9 @@ public class RagServiceImpl implements RagService {
         String prompt = promptTemplate.render(Map.of("context", context, "question", question));
 
         String reply = chatClient.prompt().user(prompt).call().content();
+        if (reply == null || reply.isBlank() || reply.contains(NO_ANSWER)){
+            return new RagAnswer(NO_ANSWER, List.of());
+        }
         return new RagAnswer(reply, toCitations(chunks));
     }
 
