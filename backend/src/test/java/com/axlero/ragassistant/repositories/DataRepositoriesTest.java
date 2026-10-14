@@ -17,6 +17,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.hibernate.Hibernate;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,6 +62,33 @@ class DataRepositoriesTest {
         DocumentRecord reloaded = documentRecords.findById(saved.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(DocumentStatus.READY);
         assertThat(reloaded.getChunkCount()).isEqualTo(3);
+    }
+
+    @Test
+    void findsOnlyOwnedDocumentsInNewestFirstOrder() {
+        UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
+        DocumentRecord older = documentRecords.saveAndFlush(new DocumentRecord(
+                "older.pdf", "application/pdf", 1024, DocumentStatus.UPLOADED, 0, owner));
+        DocumentRecord newer = documentRecords.saveAndFlush(new DocumentRecord(
+                "newer.pdf", "application/pdf", 2048, DocumentStatus.READY, 2, owner));
+        DocumentRecord otherUsersDocument = documentRecords.saveAndFlush(new DocumentRecord(
+                "private.pdf", "application/pdf", 512, DocumentStatus.UPLOADED, 0, otherOwner));
+
+        List<DocumentRecord> ownedDocuments = documentRecords.findAllByUploadedByOrderByUploadedAtDesc(owner);
+
+        assertThat(ownedDocuments)
+                .extracting(DocumentRecord::getUploadedBy)
+                .containsOnly(owner);
+        assertThat(ownedDocuments)
+                .extracting(DocumentRecord::getUploadedAt)
+                .isSortedAccordingTo(Comparator.reverseOrder());
+        assertThat(documentRecords.findByIdAndUploadedBy(newer.getId(), owner))
+                .contains(newer);
+        assertThat(documentRecords.findByIdAndUploadedBy(otherUsersDocument.getId(), owner))
+                .isEmpty();
+        assertThat(documentRecords.findByIdAndUploadedBy(older.getId(), otherOwner))
+                .isEmpty();
     }
 
     @Test

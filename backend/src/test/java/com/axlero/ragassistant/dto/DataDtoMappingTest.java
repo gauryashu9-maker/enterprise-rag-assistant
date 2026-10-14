@@ -18,12 +18,33 @@ class DataDtoMappingTest {
         DocumentRecord document = new DocumentRecord(
                 "handbook.pdf", "application/pdf", 2048, DocumentStatus.READY, 3, UUID.randomUUID());
 
-        DocumentRecordResponse response = DocumentRecordResponse.fromEntity(document);
+        DocumentResponse response = DocumentResponse.fromEntity(document);
 
+        assertThat(response.id()).isEqualTo(document.getId());
         assertThat(response.filename()).isEqualTo("handbook.pdf");
-        assertThat(response.contentType()).isEqualTo("application/pdf");
         assertThat(response.status()).isEqualTo(DocumentStatus.READY);
-        assertThat(response.chunkCount()).isEqualTo(3);
+        assertThat(response.uploadedAt()).isEqualTo(document.getUploadedAt());
+        assertThat(response.sizeBytes()).isEqualTo(2048L);
+        assertThat(response.errorMessage()).isNull();
+    }
+
+    @Test
+    void mapsStatusAndErrorMessageForFailedDocument() {
+        DocumentRecord document = new DocumentRecord(
+                "handbook.pdf", "application/pdf", 2048, DocumentStatus.PROCESSING, 0, UUID.randomUUID());
+        document.updateStatus(DocumentStatus.FAILED, "Unsupported document format");
+
+        DocumentResponse response = DocumentResponse.fromEntity(document);
+
+        assertThat(response.status()).isEqualTo(DocumentStatus.FAILED);
+        assertThat(response.errorMessage()).isEqualTo("Unsupported document format");
+    }
+
+    @Test
+    void documentStatusValuesMatchTheApiContract() {
+        assertThat(DocumentStatus.values()).containsExactly(
+                DocumentStatus.UPLOADED, DocumentStatus.PROCESSING,
+                DocumentStatus.READY, DocumentStatus.FAILED);
     }
 
     @Test

@@ -1,7 +1,7 @@
 package com.axlero.ragassistant.entities;
 
 public enum DocumentStatus {
-    UPLOADING,
+    UPLOADED,
     PROCESSING,
     READY,
     FAILED

@@ -40,6 +40,9 @@ public class DocumentRecord {
     @Column(nullable = false)
     private UUID uploadedBy;
 
+    @Column(columnDefinition = "text")
+    private String errorMessage;
+
     @Column(nullable = false, updatable = false)
     private Instant uploadedAt;
 
@@ -87,5 +90,14 @@ public class DocumentRecord {
 
     public Instant getUploadedAt() {
         return uploadedAt;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+
+    public void updateStatus(DocumentStatus status, String errorMessage) {
+        this.status = status;
+        this.errorMessage = errorMessage;
     }
 }
