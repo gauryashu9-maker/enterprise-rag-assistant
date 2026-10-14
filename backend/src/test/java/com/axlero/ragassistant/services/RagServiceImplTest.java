@@ -33,9 +33,11 @@ class RagServiceImplTest {
         verifyNoInteractions(chatClient);
     }
 
-    @Test
+    @SuppressWarnings("null")
+	@Test
     void answersFromRetrievedChunksWithCitations() {
-        Document chunk = new Document("Employees get 24 days of leave.", Map.of("filename", "hr-policy.pdf", "page", 2));
+        @SuppressWarnings("null")
+		Document chunk = new Document("Employees get 24 days of leave.", Map.of("filename", "hr-policy.pdf", "page", 2));
         when(retrieval.retrieve("leave?")).thenReturn(List.of(chunk));
         when(chatClient.prompt().user(anyString()).call().content()).thenReturn("24 days.");
 
@@ -45,5 +47,32 @@ class RagServiceImplTest {
         assertEquals(1, answer.citations().size());
         assertEquals("hr-policy.pdf", answer.citations().get(0).documentName());
         assertEquals(2, answer.citations().get(0).page());
+    }
+    @SuppressWarnings("null")
+	@Test
+    void dropsCitationsWhenModelSaysItDoesNotKnow() {
+        @SuppressWarnings("null")
+		Document chunk = new Document("Unrelated text.", Map.of("filename", "a.pdf", "page", 1));
+        when(retrieval.retrieve("q")).thenReturn(List.of(chunk));
+        when(chatClient.prompt().user(anyString()).call().content()).thenReturn(RagServiceImpl.NO_ANSWER);
+
+        RagAnswer answer = service.answer("q");
+
+        assertEquals(RagServiceImpl.NO_ANSWER, answer.answer());
+        assertEquals(0, answer.citations().size());
+    }
+
+    @SuppressWarnings("null")
+	@Test
+    void returnsFallbackWhenModelReturnsNull() {
+        @SuppressWarnings("null")
+		Document chunk = new Document("Some text.", Map.of("filename", "a.pdf", "page", 1));
+        when(retrieval.retrieve("q")).thenReturn(List.of(chunk));
+        when(chatClient.prompt().user(anyString()).call().content()).thenReturn(null);
+
+        RagAnswer answer = service.answer("q");
+
+        assertEquals(RagServiceImpl.NO_ANSWER, answer.answer());
+        assertEquals(0, answer.citations().size());
     }
 }
