@@ -2,7 +2,14 @@
 <!-- 1-3 lines. Link the issue: Closes #12 -->
 
 ## Layer(s) touched
-- [ ] controllers  - [ ] services  - [ ] repositories  - [ ] entities  - [ ] dto  - [ ] exceptions  - [ ] config  - [ ] frontend
+- [ ] controllers  
+- [ ] services  
+- [ ] repositories  
+- [ ] entities  
+- [ ] dto  
+- [ ] exceptions  
+- [ ] config  
+- [ ] frontend
 
 ## Checklist
 - [ ] Commits follow Conventional Commits (`feat:`, `fix:`, `test:` ...)
