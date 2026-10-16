@@ -38,6 +38,12 @@ Known limits:
 - Tiny sample (4 chunks, 7 questions). Re-tune with real uploaded documents.
 - Scores are specific to nomic-embed-text. Re-run this experiment if the team changes embedding model.
 
+## Live check at threshold 0.55
+  - Q2, Q3, Q4 answered correctly. Q5 (cricket), Q6 (dress code), Q7 (joke) fell back correctly with no citations.
+  - Q1 answered WRONGLY ("156 days") because 3 chunks passed, 2 of them unrelated, and the 0.5B chat model mixed them up and invented arithmetic.
+  - Conclusion: the threshold stops off-topic questions, but noisy context still hurts weak models.
+  - Next: keep only chunks within ~85% of the best score, and re-test with a larger chat model.
+
 ## Next idea
 
 Keep only chunks scoring within about 85% of the best chunk. On this data that gives exactly one citation for each real question.
