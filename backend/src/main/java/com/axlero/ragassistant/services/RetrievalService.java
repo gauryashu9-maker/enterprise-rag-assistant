@@ -21,7 +21,7 @@ public class RetrievalService {
 
     public RetrievalService(VectorStore vectorStore,
                             @Value("${app.rag.top-k:5}") int topK,
-                            @Value("${app.rag.similarity-threshold:0.4}") double similarityThreshold) {
+                            @Value("${app.rag.similarity-threshold:0.55}") double similarityThreshold) {
         this.vectorStore = vectorStore;
         this.topK = topK;
         this.similarityThreshold = similarityThreshold;
