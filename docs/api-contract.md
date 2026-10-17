@@ -59,7 +59,42 @@ The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. S
 
 ## Authentication
 
-**TBD — owned by the Security module.** Token format, login/refresh endpoints, how the authenticated user is identified, and required request headers are not confirmed here. The current `SecurityConfig` temporarily permits all requests, so authentication and owner enforcement are not active in this checkout.
+Status: agreed contract. The Security role implements it; until then the frontend uses mock auth.
+
+### POST /api/auth/login
+
+Request:
+```json
+{ "email": "user@example.com", "password": "secret123" }
+```
+
+200 OK:
+```json
+{ "token": "<jwt>", "email": "user@example.com", "role": "USER" }
+```
+
+401 (wrong email or password), `ProblemDetail`:
+```json
+{ "type": "about:blank", "title": "Unauthorized", "status": 401, "detail": "Invalid email or password", "instance": "/api/auth/login" }
+```
+
+400: blank or invalid fields, `ProblemDetail`.
+
+### POST /api/auth/register
+
+Request: `{ "email": "...", "password": "..." }` (password at least 8 characters)
+
+201 Created: `{ "id": "<uuid>", "email": "...", "role": "USER" }`
+
+409: email already registered, `ProblemDetail`. 400: invalid fields, `ProblemDetail`.
+
+### Using the token
+
+Send `Authorization: Bearer <token>` on every request except `/api/auth/**`.
+A missing, invalid or expired token returns 401 with a `ProblemDetail`.
+
+Roles: `USER` can chat. `ADMIN` can also upload and delete documents.
+Dev-only test accounts will be seeded by the Security role and listed here.
 
 ## Errors
 
