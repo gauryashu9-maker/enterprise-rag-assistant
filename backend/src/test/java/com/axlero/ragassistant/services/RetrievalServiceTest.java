@@ -71,4 +71,29 @@ class RetrievalServiceTest {
             logger.setLevel(previous);
         }
     }
+
+    @Test
+    void keepNearBestDropsWeakChunksAndKeepsUnscored() {
+        Document best = Document.builder().text("best").score(0.80).build();
+        Document close = Document.builder().text("close").score(0.70).build();
+        Document weak = Document.builder().text("weak").score(0.57).build();
+
+        List<Document> kept = RetrievalService.keepNearBest(List.of(best, close, weak), 0.85);
+
+        assertEquals(2, kept.size());
+        assertEquals(1, RetrievalService.keepNearBest(List.of(new Document("no score")), 0.85).size());
+    }
+
+    @Test
+    void retrieveDropsChunksFarBelowTheBestScore() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        Document best = Document.builder().text("best").score(0.80).build();
+        Document weak = Document.builder().text("weak").score(0.57).build();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(best, weak));
+
+        List<Document> result = new RetrievalService(vectorStore, 5, 0.55).retrieve("q");
+
+        assertEquals(1, result.size());
+        assertEquals("best", result.get(0).getText());
+    }
 }
