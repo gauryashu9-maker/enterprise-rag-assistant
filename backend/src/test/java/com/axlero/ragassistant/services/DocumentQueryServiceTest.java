@@ -6,6 +6,7 @@ import com.axlero.ragassistant.entities.DocumentStatus;
 import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import com.axlero.ragassistant.repositories.DocumentRecordRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,7 +14,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -88,16 +88,14 @@ class DocumentQueryServiceTest {
         UUID actualOwnerId = UUID.randomUUID();
         DocumentRecord otherOwnersDocument = new DocumentRecord(
                 "private.pdf", "application/pdf", 512, DocumentStatus.UPLOADED, 0, actualOwnerId);
-        when(repository.findByIdAndUploadedBy(any(UUID.class), any(UUID.class)))
+        when(repository.findByIdAndUploadedBy(
+                ArgumentMatchers.any(UUID.class), ArgumentMatchers.any(UUID.class)))
                 .thenAnswer(invocation -> {
-                    UUID queriedOwnerId = invocation.getArgument(1);
+                    UUID queriedOwnerId = invocation.getArgument(1, UUID.class);
                     return otherOwnersDocument.getUploadedBy().equals(queriedOwnerId)
                             ? Optional.of(otherOwnersDocument)
                             : Optional.empty();
                 });
-
-        assertEquals(Optional.of(otherOwnersDocument),
-                repository.findByIdAndUploadedBy(documentId, actualOwnerId));
 
         ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,
