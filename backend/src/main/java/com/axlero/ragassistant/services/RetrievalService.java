@@ -16,19 +16,23 @@ public class RetrievalService {
 
     private static final Logger log = LoggerFactory.getLogger(RetrievalService.class);
 
-    /** Keep only chunks scoring at least this fraction of the best chunk's score. */
-    private static final double RELATIVE_CUTOFF = 0.85;
-
     private final VectorStore vectorStore;
     private final int topK;
     private final double similarityThreshold;
+    /** Keep only chunks scoring at least this fraction of the best chunk's score (0 to 1). */
+    private final double relativeCutoff;
 
     public RetrievalService(VectorStore vectorStore,
                             @Value("${app.rag.top-k:5}") int topK,
-                            @Value("${app.rag.similarity-threshold:0.55}") double similarityThreshold) {
+                            @Value("${app.rag.similarity-threshold:0.55}") double similarityThreshold,
+                            @Value("${app.rag.relative-cutoff:0.85}") double relativeCutoff) {
+        if (relativeCutoff < 0.0 || relativeCutoff > 1.0) {
+            throw new IllegalArgumentException("app.rag.relative-cutoff must be between 0 and 1, got " + relativeCutoff);
+        }
         this.vectorStore = vectorStore;
         this.topK = topK;
         this.similarityThreshold = similarityThreshold;
+        this.relativeCutoff = relativeCutoff;
     }
 
     public List<Document> retrieve(String question) {
@@ -38,7 +42,7 @@ public class RetrievalService {
                 .similarityThreshold(similarityThreshold)
                 .build();
         List<Document> results = vectorStore.similaritySearch(request);
-        List<Document> chunks = keepNearBest(results == null ? List.of() : results, RELATIVE_CUTOFF);
+        List<Document> chunks = keepNearBest(results == null ? List.of() : results, relativeCutoff);
         if (log.isDebugEnabled()) {
             for (Document chunk : chunks) {
                 log.debug("retrieved chunkId={} page={} score={}",

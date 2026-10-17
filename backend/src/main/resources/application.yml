@@ -2,6 +2,7 @@ app:
   rag:
     top-k: 5
     similarity-threshold: 0.55
+    relative-cutoff: 0.85
 spring:
   application:
     name: rag-assistant
