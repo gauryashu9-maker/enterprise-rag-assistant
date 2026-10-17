@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,17 @@ class DocumentQueryServiceTest {
     }
 
     @Test
+    void returnsAnEmptyListWhenTheOwnerHasNoDocuments() {
+        UUID ownerId = UUID.randomUUID();
+        when(repository.findAllByUploadedByOrderByUploadedAtDesc(ownerId)).thenReturn(List.of());
+
+        List<DocumentResponse> result = service.listDocuments(ownerId);
+
+        assertEquals(List.of(), result);
+        verify(repository).findAllByUploadedByOrderByUploadedAtDesc(ownerId);
+    }
+
+    @Test
     void looksUpDocumentWithinTheSpecifiedOwnerScope() {
         UUID documentId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
@@ -56,23 +68,42 @@ class DocumentQueryServiceTest {
     }
 
     @Test
-    void returnsTheSameNotFoundErrorForMissingOrOtherOwnersDocument() {
+    void returnsNotFoundWhenDocumentDoesNotExist() {
         UUID missingDocumentId = UUID.randomUUID();
-        UUID existingDocumentId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        when(repository.findByIdAndUploadedBy(missingDocumentId, ownerId)).thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> service.getDocument(missingDocumentId, ownerId));
+
+        assertEquals("Document not found", exception.getMessage());
+        verify(repository).findByIdAndUploadedBy(missingDocumentId, ownerId);
+    }
+
+    @Test
+    void returnsNotFoundWhenDocumentBelongsToAnotherOwner() {
+        UUID documentId = UUID.randomUUID();
         UUID requestedOwnerId = UUID.randomUUID();
-        when(repository.findByIdAndUploadedBy(missingDocumentId, requestedOwnerId)).thenReturn(Optional.empty());
-        when(repository.findByIdAndUploadedBy(existingDocumentId, requestedOwnerId)).thenReturn(Optional.empty());
+        UUID actualOwnerId = UUID.randomUUID();
+        DocumentRecord otherOwnersDocument = new DocumentRecord(
+                "private.pdf", "application/pdf", 512, DocumentStatus.UPLOADED, 0, actualOwnerId);
+        when(repository.findByIdAndUploadedBy(any(UUID.class), any(UUID.class)))
+                .thenAnswer(invocation -> {
+                    UUID queriedOwnerId = invocation.getArgument(1);
+                    return otherOwnersDocument.getUploadedBy().equals(queriedOwnerId)
+                            ? Optional.of(otherOwnersDocument)
+                            : Optional.empty();
+                });
 
-        ResourceNotFoundException missingDocumentException = assertThrows(
-                ResourceNotFoundException.class,
-                () -> service.getDocument(missingDocumentId, requestedOwnerId));
-        ResourceNotFoundException otherOwnersDocumentException = assertThrows(
-                ResourceNotFoundException.class,
-                () -> service.getDocument(existingDocumentId, requestedOwnerId));
+        assertEquals(Optional.of(otherOwnersDocument),
+                repository.findByIdAndUploadedBy(documentId, actualOwnerId));
 
-        assertEquals("Document not found", missingDocumentException.getMessage());
-        assertEquals(missingDocumentException.getMessage(), otherOwnersDocumentException.getMessage());
-        verify(repository).findByIdAndUploadedBy(missingDocumentId, requestedOwnerId);
-        verify(repository).findByIdAndUploadedBy(existingDocumentId, requestedOwnerId);
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> service.getDocument(documentId, requestedOwnerId));
+
+        assertEquals("Document not found", exception.getMessage());
+        verify(repository).findByIdAndUploadedBy(documentId, requestedOwnerId);
     }
 }
