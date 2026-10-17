@@ -59,7 +59,50 @@ The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. S
 
 ## Authentication
 
-**TBD — owned by the Security module.** Token format, login/refresh endpoints, how the authenticated user is identified, and required request headers are not confirmed here. The current `SecurityConfig` temporarily permits all requests, so authentication and owner enforcement are not active in this checkout.
+**PLANNED, not implemented yet.** The authentication endpoints below are the agreed contract for the Security module. Until they exist, the frontend uses mock auth.
+
+| Item | Status |
+|---|---|
+| `POST /api/auth/login` | Planned |
+| `POST /api/auth/register` | Planned |
+| Bearer token on protected endpoints | Planned |
+| 401 response from the Security module (example below) | Planned; the shape is a target, not live behavior |
+| `ProblemDetail` format for validation and server errors | Implemented (`GlobalExceptionHandler`) |
+
+### POST /api/auth/login
+
+Request:
+```json
+{ "email": "user@example.com", "password": "secret123" }
+```
+
+200 OK:
+```json
+{ "token": "<jwt>", "email": "user@example.com", "role": "USER" }
+```
+
+401 (wrong email or password), `ProblemDetail`:
+```json
+{ "type": "about:blank", "title": "Unauthorized", "status": 401, "detail": "Invalid email or password" }
+```
+
+400: blank or invalid fields, `ProblemDetail`.
+
+### POST /api/auth/register
+
+Request: `{ "email": "...", "password": "..." }` (password at least 8 characters)
+
+201 Created: `{ "id": "<uuid>", "email": "...", "role": "USER" }`
+
+409: email already registered, `ProblemDetail`. 400: invalid fields, `ProblemDetail`.
+
+### Using the token
+
+Send `Authorization: Bearer <token>` on every request except `/api/auth/**`.
+A missing, invalid or expired token returns 401 with a `ProblemDetail`.
+
+Roles: `USER` can chat. `ADMIN` can also upload and delete documents.
+Dev-only test accounts will be seeded by the Security role and listed here.
 
 ## Errors
 
@@ -116,4 +159,4 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
 
 ### Authentication-related statuses
 
-`401 Unauthorized` and `403 Forbidden` may apply once authentication and authorization are enabled. Their response bodies and ProblemDetail behavior are **TBD with the Security module**; they are not produced by the current `GlobalExceptionHandler`. Do not assume the examples above describe those responses.
+`401 Unauthorized` and `403 Forbidden` apply once authentication and authorization are enabled. The planned `401` response for login is described in the Authentication section above (planned, not implemented). The `403` response body is **TBD with the Security module**. Neither is produced by the current `GlobalExceptionHandler`, so do not assume the validation and not-found examples describe them.
