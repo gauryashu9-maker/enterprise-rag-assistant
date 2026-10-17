@@ -44,6 +44,30 @@ Known limits:
   - Conclusion: the threshold stops off-topic questions, but noisy context still hurts weak models.
   - Next: keep only chunks within ~85% of the best score, and re-test with a larger chat model.
 
-## Next idea
+## Next idea (now implemented, see "Live results with the relative cutoff" below)
 
 Keep only chunks scoring within about 85% of the best chunk. On this data that gives exactly one citation for each real question.
+
+## Live results with the relative cutoff (0.85 of best score)
+
+- Date: 2026-10-17
+- Same setup: nomic-embed-text, qwen2.5:0.5b, topK 5, similarity-threshold 0.55
+- Change: chunks scoring below 85% of the best retrieved chunk are dropped
+
+| Question | Before cutoff | After cutoff |
+|---|---|---|
+| Q1 annual leave | WRONG answer (156 days), 3 citations (2 unrelated) | Correct (24 days), 1 citation (page 1) |
+| Q2 work from home | Correct, 1 citation | Correct, 1 citation (page 2) |
+| Q3 expense deadline | Correct, 2 citations (1 unrelated) | Correct, 1 citation (page 3) |
+| Q4 laptop return | Correct, 1 citation | Correct, 1 citation (page 4) |
+| Q5 cricket (off-topic) | Fallback | Fallback |
+| Q6 dress code (off-topic) | Fallback | Fallback |
+| Q7 joke (off-topic) | Fallback | Fallback |
+
+Why Q1 was wrong before: unrelated chunks (remote work, laptop) reached the 0.5B model, which mixed them and invented arithmetic. In the observed run, removing weak chunks fixed the wrong answer, not just the citations. This is one run of a non-deterministic model, not a guarantee.
+
+Limits:
+- 0.85 was chosen from only 4 chunks and 7 questions. Re-check with real uploaded documents.
+- The ratio is configurable via `app.rag.relative-cutoff` (default 0.85, must be between 0 and 1).
+- Scores are specific to nomic-embed-text. Re-run this experiment if the team standardizes on another embedding model.
+- Answer wording still comes from a tiny model and can be sloppy.

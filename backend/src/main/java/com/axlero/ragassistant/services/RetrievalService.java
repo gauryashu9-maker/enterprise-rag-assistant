@@ -1,6 +1,7 @@
 package com.axlero.ragassistant.services;
 
 import java.util.List;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -18,24 +19,30 @@ public class RetrievalService {
     private final VectorStore vectorStore;
     private final int topK;
     private final double similarityThreshold;
+    /** Keep only chunks scoring at least this fraction of the best chunk's score (0 to 1). */
+    private final double relativeCutoff;
 
     public RetrievalService(VectorStore vectorStore,
                             @Value("${app.rag.top-k:5}") int topK,
-                            @Value("${app.rag.similarity-threshold:0.55}") double similarityThreshold) {
+                            @Value("${app.rag.similarity-threshold:0.55}") double similarityThreshold,
+                            @Value("${app.rag.relative-cutoff:0.85}") double relativeCutoff) {
+        if (relativeCutoff < 0.0 || relativeCutoff > 1.0) {
+            throw new IllegalArgumentException("app.rag.relative-cutoff must be between 0 and 1, got " + relativeCutoff);
+        }
         this.vectorStore = vectorStore;
         this.topK = topK;
         this.similarityThreshold = similarityThreshold;
+        this.relativeCutoff = relativeCutoff;
     }
 
     public List<Document> retrieve(String question) {
-        @SuppressWarnings("null")
         SearchRequest request = SearchRequest.builder()
                 .query(question)
                 .topK(topK)
                 .similarityThreshold(similarityThreshold)
                 .build();
         List<Document> results = vectorStore.similaritySearch(request);
-        List<Document> chunks = results == null ? List.of() : results;
+        List<Document> chunks = keepNearBest(results == null ? List.of() : results, relativeCutoff);
         if (log.isDebugEnabled()) {
             for (Document chunk : chunks) {
                 log.debug("retrieved chunkId={} page={} score={}",
@@ -46,4 +53,17 @@ public class RetrievalService {
         }
         return chunks;
     }
-}   
+
+    /** Keeps only chunks scoring within `ratio` of the best chunk. Chunks without a score are kept. */
+    static List<Document> keepNearBest(List<Document> chunks, double ratio) {
+        double best = chunks.stream()
+                .map(Document::getScore)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .max()
+                .orElse(0.0);
+        return chunks.stream()
+                .filter(d -> d.getScore() == null || d.getScore() >= best * ratio)
+                .toList();
+    }
+}

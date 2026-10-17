@@ -1,6 +1,7 @@
 package com.axlero.ragassistant.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -27,7 +28,7 @@ class RetrievalServiceTest {
         VectorStore vectorStore = mock(VectorStore.class);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(new Document("chunk")));
 
-        List<Document> result = new RetrievalService(vectorStore, 3, 0.4).retrieve("leave?");
+        List<Document> result = new RetrievalService(vectorStore, 3, 0.4, 0.85).retrieve("leave?");
 
         ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
         verify(vectorStore).similaritySearch(captor.capture());
@@ -42,7 +43,7 @@ class RetrievalServiceTest {
         VectorStore vectorStore = mock(VectorStore.class);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(null);
 
-        assertTrue(new RetrievalService(vectorStore, 5, 0.4).retrieve("anything").isEmpty());
+        assertTrue(new RetrievalService(vectorStore, 5, 0.4, 0.85).retrieve("anything").isEmpty());
     }
 
     @Test
@@ -62,7 +63,7 @@ class RetrievalServiceTest {
                     .build();
             when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(chunk));
 
-            new RetrievalService(vectorStore, 5, 0.55).retrieve("q");
+            new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q");
 
             assertTrue(appender.list.stream().anyMatch(e -> e.getFormattedMessage().contains("score=")));
             assertTrue(appender.list.stream().noneMatch(e -> e.getFormattedMessage().contains("secret-salary.pdf")));
@@ -70,5 +71,54 @@ class RetrievalServiceTest {
             logger.detachAppender(appender);
             logger.setLevel(previous);
         }
+    }
+
+    @Test
+    void keepNearBestDropsWeakChunksAndKeepsUnscored() {
+        Document best = Document.builder().text("best").score(0.80).build();
+        Document close = Document.builder().text("close").score(0.70).build();
+        Document weak = Document.builder().text("weak").score(0.57).build();
+
+        List<Document> kept = RetrievalService.keepNearBest(List.of(best, close, weak), 0.85);
+
+        assertEquals(2, kept.size());
+        assertEquals(1, RetrievalService.keepNearBest(List.of(new Document("no score")), 0.85).size());
+    }
+
+    @Test
+    void retrieveDropsChunksFarBelowTheBestScore() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        Document best = Document.builder().text("best").score(0.80).build();
+        Document weak = Document.builder().text("weak").score(0.57).build();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(best, weak));
+
+        List<Document> result = new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q");
+
+        assertEquals(1, result.size());
+        assertEquals("best", result.get(0).getText());
+    }
+
+    @Test
+    void keepNearBestOnEmptyListReturnsEmpty() {
+        assertTrue(RetrievalService.keepNearBest(List.of(), 0.85).isEmpty());
+    }
+
+    @Test
+    void retrieveHonoursConfiguredRelativeCutoff() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        Document best = Document.builder().text("best").score(0.80).build();
+        Document weak = Document.builder().text("weak").score(0.57).build();
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(best, weak));
+
+        assertEquals(2, new RetrievalService(vectorStore, 5, 0.55, 0.5).retrieve("q").size());
+        assertEquals(1, new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q").size());
+    }
+
+    @Test
+    void rejectsRelativeCutoffOutsideZeroToOne() {
+        VectorStore vectorStore = mock(VectorStore.class);
+
+        assertThrows(IllegalArgumentException.class, () -> new RetrievalService(vectorStore, 5, 0.55, 1.5));
+        assertThrows(IllegalArgumentException.class, () -> new RetrievalService(vectorStore, 5, 0.55, -0.1));
     }
 }
