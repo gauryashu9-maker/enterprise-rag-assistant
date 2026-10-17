@@ -5,13 +5,23 @@ import com.axlero.ragassistant.entities.ChatMessageRole;
 import com.axlero.ragassistant.entities.ChatSession;
 import com.axlero.ragassistant.entities.DocumentRecord;
 import com.axlero.ragassistant.entities.DocumentStatus;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@JsonTest
 class DataDtoMappingTest {
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void mapsDocumentRecordFields() {
@@ -38,6 +48,40 @@ class DataDtoMappingTest {
 
         assertThat(response.status()).isEqualTo(DocumentStatus.FAILED);
         assertThat(response.errorMessage()).isEqualTo("Unsupported document format");
+    }
+
+    @Test
+    void serializesDocumentResponseAccordingToJsonContract() throws IOException {
+        UUID id = UUID.fromString("8ca57f15-4358-4bc6-a8af-614eab659cf4");
+        Instant uploadedAt = Instant.parse("2026-10-15T12:30:00Z");
+        DocumentResponse response = new DocumentResponse(
+                id, "handbook.pdf", DocumentStatus.READY, uploadedAt, 2048L, null);
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(response));
+
+        assertThat(json.get("id").isTextual()).isTrue();
+        assertThat(json.get("id").textValue()).isEqualTo(id.toString());
+        assertThat(json.get("status").textValue()).isEqualTo("READY");
+        assertThat(json.get("uploadedAt").textValue()).isEqualTo("2026-10-15T12:30:00Z");
+        assertThat(json.get("sizeBytes").isNumber()).isTrue();
+        assertThat(json.get("sizeBytes").longValue()).isEqualTo(2048L);
+        assertThat(json.has("errorMessage")).isFalse();
+    }
+
+    @Test
+    void serializesFailedDocumentErrorMessage() throws IOException {
+        DocumentResponse response = new DocumentResponse(
+                UUID.randomUUID(),
+                "handbook.pdf",
+                DocumentStatus.FAILED,
+                Instant.parse("2026-10-15T12:30:00Z"),
+                2048L,
+                "Unsupported document format");
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(response));
+
+        assertThat(json.get("status").textValue()).isEqualTo("FAILED");
+        assertThat(json.get("errorMessage").textValue()).isEqualTo("Unsupported document format");
     }
 
     @Test
