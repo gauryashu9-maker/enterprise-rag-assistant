@@ -59,7 +59,15 @@ The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. S
 
 ## Authentication
 
-Status: agreed contract. The Security role implements it; until then the frontend uses mock auth.
+**PLANNED, not implemented yet.** The authentication endpoints below are the agreed contract for the Security module. Until they exist, the frontend uses mock auth.
+
+| Item | Status |
+|---|---|
+| `POST /api/auth/login` | Planned |
+| `POST /api/auth/register` | Planned |
+| Bearer token on protected endpoints | Planned |
+| 401 response from the Security module (example below) | Planned; the shape is a target, not live behavior |
+| `ProblemDetail` format for validation and server errors | Implemented (`GlobalExceptionHandler`) |
 
 ### POST /api/auth/login
 
@@ -75,7 +83,7 @@ Request:
 
 401 (wrong email or password), `ProblemDetail`:
 ```json
-{ "type": "about:blank", "title": "Unauthorized", "status": 401, "detail": "Invalid email or password", "instance": "/api/auth/login" }
+{ "type": "about:blank", "title": "Unauthorized", "status": 401, "detail": "Invalid email or password" }
 ```
 
 400: blank or invalid fields, `ProblemDetail`.
@@ -151,4 +159,4 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
 
 ### Authentication-related statuses
 
-`401 Unauthorized` and `403 Forbidden` may apply once authentication and authorization are enabled. Their response bodies and ProblemDetail behavior are **TBD with the Security module**; they are not produced by the current `GlobalExceptionHandler`. Do not assume the examples above describe those responses.
+`401 Unauthorized` and `403 Forbidden` apply once authentication and authorization are enabled. The planned `401` response for login is described in the Authentication section above (planned, not implemented). The `403` response body is **TBD with the Security module**. Neither is produced by the current `GlobalExceptionHandler`, so do not assume the validation and not-found examples describe them.
