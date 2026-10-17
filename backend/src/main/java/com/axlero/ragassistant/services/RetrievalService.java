@@ -38,12 +38,12 @@ public class RetrievalService {
         List<Document> chunks = results == null ? List.of() : results;
         if (log.isDebugEnabled()) {
             for (Document chunk : chunks) {
-                log.debug("retrieved filename={} page={} score={}",
-                        chunk.getMetadata().get("filename"),
+                log.debug("retrieved chunkId={} page={} score={}",
+                        chunk.getId(),
                         chunk.getMetadata().get("page"),
                         chunk.getScore());
             }
         }
         return chunks;
     }
-}
+}   
