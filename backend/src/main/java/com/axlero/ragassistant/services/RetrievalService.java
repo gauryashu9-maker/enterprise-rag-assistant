@@ -1,6 +1,7 @@
 package com.axlero.ragassistant.services;
 
 import java.util.List;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -15,6 +16,9 @@ public class RetrievalService {
 
     private static final Logger log = LoggerFactory.getLogger(RetrievalService.class);
 
+    /** Keep only chunks scoring at least this fraction of the best chunk's score. */
+    private static final double RELATIVE_CUTOFF = 0.85;
+
     private final VectorStore vectorStore;
     private final int topK;
     private final double similarityThreshold;
@@ -28,14 +32,13 @@ public class RetrievalService {
     }
 
     public List<Document> retrieve(String question) {
-        @SuppressWarnings("null")
         SearchRequest request = SearchRequest.builder()
                 .query(question)
                 .topK(topK)
                 .similarityThreshold(similarityThreshold)
                 .build();
         List<Document> results = vectorStore.similaritySearch(request);
-        List<Document> chunks = results == null ? List.of() : results;
+        List<Document> chunks = keepNearBest(results == null ? List.of() : results, RELATIVE_CUTOFF);
         if (log.isDebugEnabled()) {
             for (Document chunk : chunks) {
                 log.debug("retrieved chunkId={} page={} score={}",
@@ -46,4 +49,17 @@ public class RetrievalService {
         }
         return chunks;
     }
-}   
+
+    /** Keeps only chunks scoring within `ratio` of the best chunk. Chunks without a score are kept. */
+    static List<Document> keepNearBest(List<Document> chunks, double ratio) {
+        double best = chunks.stream()
+                .map(Document::getScore)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .max()
+                .orElse(0.0);
+        return chunks.stream()
+                .filter(d -> d.getScore() == null || d.getScore() >= best * ratio)
+                .toList();
+    }
+}
