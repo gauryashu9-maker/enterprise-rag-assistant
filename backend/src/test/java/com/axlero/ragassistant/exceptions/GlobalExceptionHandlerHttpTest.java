@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -42,6 +44,19 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(jsonPath("$.title", equalTo("Validation failed")))
                 .andExpect(jsonPath("$.status", equalTo(400)))
                 .andExpect(jsonPath("$.errors.name", equalTo("must not be blank")));
+    }
+
+    @Test
+    void returnsBadRequestProblemForMalformedJson() throws Exception {
+        mockMvc.perform(post("/probe/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"secret-marker\""))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Malformed request")))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.detail", equalTo("Request body is missing or invalid")))
+                .andExpect(content().string(not(containsString("secret-marker"))));
     }
 
     @Test

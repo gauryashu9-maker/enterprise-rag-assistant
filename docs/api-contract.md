@@ -180,6 +180,17 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
 }
 ```
 
+**400 — Malformed request.** Missing or unreadable JSON request bodies receive a sanitized ProblemDetail response; parser details are not exposed.
+
+```json
+{
+  "type": "about:blank",
+  "title": "Malformed request",
+  "status": 400,
+  "detail": "Request body is missing or invalid"
+}
+```
+
 **404 — Resource not found.** `detail` contains the `ResourceNotFoundException` message.
 
 ```json
