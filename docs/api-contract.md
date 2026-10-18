@@ -84,7 +84,7 @@ Request:
 
 401 (wrong email or password), `ProblemDetail`:
 ```json
-{ "type": "about:blank", "title": "Unauthorized", "status": 401, "detail": "Invalid email or password" }
+{ "type": "about:blank", "title": "Unauthorized", "status": 401, "detail": "Invalid email or password", "instance": "/api/auth/login" }
 ```
 
 400: blank or invalid fields, `ProblemDetail`.
@@ -107,7 +107,7 @@ Dev-only test accounts will be seeded by the Security role and listed here.
 
 ## Errors
 
-The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses with `type`, `title`, `status`, and `detail`; validation responses also include an `errors` extension mapping field names to validation messages. The `type` is `about:blank` unless set otherwise. The handler does not set `instance`, and null `instance` is omitted from the JSON.
+The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses with `type`, `title`, `status`, `detail`, and `instance`; validation responses also include an `errors` extension mapping field names to validation messages. The `type` is `about:blank` unless set otherwise. `instance` contains the request path (for example `/api/rag/ask`), verified against the running app.
 
 ### Confirmed handler responses
 
