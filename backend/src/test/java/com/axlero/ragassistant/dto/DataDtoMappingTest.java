@@ -61,6 +61,8 @@ class DataDtoMappingTest {
 
         assertThat(json.get("id").isTextual()).isTrue();
         assertThat(json.get("id").textValue()).isEqualTo(id.toString());
+        assertThat(json.has("filename")).isTrue();
+        assertThat(json.get("filename").textValue()).isEqualTo("handbook.pdf");
         assertThat(json.get("status").textValue()).isEqualTo("READY");
         assertThat(json.get("uploadedAt").textValue()).isEqualTo("2026-10-15T12:30:00Z");
         assertThat(json.get("sizeBytes").isNumber()).isTrue();
