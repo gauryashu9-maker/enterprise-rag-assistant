@@ -60,7 +60,7 @@ Spring Boot reads `.env` automatically (see `application.yml`), so no manual exp
 
 | Role | Owner | Area |
 |---|---|---|
-| 1. Lead / DevOps | _TBD_ | CI, Docker, integration, README, demo |
+| 1. Lead / DevOps | Anuj | CI, Docker, integration, README, demo |
 | 2. Security | _TBD_ | JWT auth, SecurityConfig, CORS, Swagger config |
 | 3. Ingestion (ETL) | Aniket | Upload API, extraction, chunking, embeddings, vector store writes |
 | 4. RAG Engine | Yashu (team lead) | Retrieval, PromptTemplate, RAG service, streaming endpoint |
