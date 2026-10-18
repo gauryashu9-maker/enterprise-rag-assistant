@@ -19,6 +19,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -33,8 +35,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
 class LegacyDocumentMigrationTest {
 
     private static final UUID SESSION_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
@@ -46,31 +49,115 @@ class LegacyDocumentMigrationTest {
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
     @Test
-    void migratesLegacyDocumentsWithoutChangingExistingDataAndValidatesJpaSchema() throws Exception {
-        DataSource dataSource = new DriverManagerDataSource(
-                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
-        createLegacySchemaAndData(dataSource);
+    void dropsLegacyConstraintBeforeMigratingUploadingRows() throws Exception {
+        DataSource dataSource = createTestDataSource();
+        createLegacySchemaAndData(dataSource, true, true);
         List<DocumentSnapshot> beforeMigration = readDocuments(dataSource);
 
-        Flyway flyway = flywayUsingApplicationBaselineSettings(dataSource);
+        Flyway flyway = flywayUsingApplicationConfiguration(dataSource);
         flyway.migrate();
 
         assertThat(readFlywayHistory(dataSource)).containsExactly(
                 new FlywayHistory("0", "BASELINE", "<< Flyway Baseline >>", true),
                 new FlywayHistory("1", "SQL",
-                        "V1__create_data_schema_and_migrate_document_status.sql", true));
+                        "V1__create_data_schema_and_migrate_document_status.sql", true),
+                new FlywayHistory("2", "SQL", "V2__drop_legacy_status_check.sql", true));
 
         List<DocumentSnapshot> expectedAfterMigration = beforeMigration.stream()
                 .map(DocumentSnapshot::afterStatusMigration)
                 .toList();
         assertThat(readDocuments(dataSource)).containsExactlyElementsOf(expectedAfterMigration);
+        assertThat(readDocuments(dataSource))
+                .filteredOn(document -> document.filename().equals("uploading.pdf"))
+                .extracting(DocumentSnapshot::status)
+                .containsExactly("UPLOADED");
         assertThat(readChatRecordCounts(dataSource)).containsExactly(1, 1);
         assertThat(errorMessageColumnIsNullableText(dataSource)).isTrue();
+        assertThat(statusConstraintExists(dataSource)).isFalse();
+        insertUploadedDocument(dataSource);
+        assertThat(readDocuments(dataSource)).hasSize(beforeMigration.size() + 1);
 
         validateJpaSchema(dataSource);
+        assertThatCode(flyway::migrate).doesNotThrowAnyException();
+        assertThat(readDocuments(dataSource)).hasSize(beforeMigration.size() + 1);
     }
 
-    private static Flyway flywayUsingApplicationBaselineSettings(DataSource dataSource) throws Exception {
+    @Test
+    void dropsLegacyConstraintWhenVersionOneWasAlreadyApplied(@org.junit.jupiter.api.io.TempDir Path tempDirectory)
+            throws Exception {
+        DataSource dataSource = createTestDataSource();
+        createLegacySchemaAndData(dataSource, false, true);
+
+        Path priorApplicationMigration = tempDirectory.resolve(
+                "V1__create_data_schema_and_migrate_document_status.sql");
+        try (var migration = new ClassPathResource(
+                "db/migration/V1__create_data_schema_and_migrate_document_status.sql").getInputStream()) {
+            Files.copy(migration, priorApplicationMigration);
+        }
+
+        Flyway priorApplicationFlyway = flywayUsingApplicationConfiguration(
+                dataSource, "filesystem:" + tempDirectory.toAbsolutePath().toString().replace('\\', '/'));
+        priorApplicationFlyway.migrate();
+
+        assertThat(readFlywayHistory(dataSource)).containsExactly(
+                new FlywayHistory("0", "BASELINE", "<< Flyway Baseline >>", true),
+                new FlywayHistory("1", "SQL",
+                        "V1__create_data_schema_and_migrate_document_status.sql", true));
+        assertThat(statusConstraintExists(dataSource)).isTrue();
+        List<DocumentSnapshot> beforeUpgrade = readDocuments(dataSource);
+
+        Flyway applicationFlyway = flywayUsingApplicationConfiguration(dataSource);
+        assertThatCode(applicationFlyway::validate).doesNotThrowAnyException();
+        applicationFlyway.migrate();
+
+        assertThat(readFlywayHistory(dataSource)).containsExactly(
+                new FlywayHistory("0", "BASELINE", "<< Flyway Baseline >>", true),
+                new FlywayHistory("1", "SQL",
+                        "V1__create_data_schema_and_migrate_document_status.sql", true),
+                new FlywayHistory("2", "SQL", "V2__drop_legacy_status_check.sql", true));
+        assertThat(readDocuments(dataSource)).containsExactlyElementsOf(beforeUpgrade);
+        assertThat(statusConstraintExists(dataSource)).isFalse();
+        insertUploadedDocument(dataSource);
+        assertThat(readDocuments(dataSource)).hasSize(beforeUpgrade.size() + 1);
+
+        assertThatCode(applicationFlyway::migrate).doesNotThrowAnyException();
+        assertThat(readDocuments(dataSource)).hasSize(beforeUpgrade.size() + 1);
+    }
+
+    @Test
+    void migratesCleanDatabaseAndAllowsUploadedStatus() throws Exception {
+        DataSource dataSource = createTestDataSource();
+        Flyway flyway = flywayUsingApplicationConfiguration(dataSource);
+
+        flyway.migrate();
+
+        assertThat(readFlywayHistory(dataSource)).containsExactly(
+                new FlywayHistory("1", "SQL",
+                        "V1__create_data_schema_and_migrate_document_status.sql", true),
+                new FlywayHistory("2", "SQL", "V2__drop_legacy_status_check.sql", true));
+        assertThat(statusConstraintExists(dataSource)).isFalse();
+        insertUploadedDocument(dataSource);
+        assertThat(readDocuments(dataSource)).hasSize(1);
+
+        assertThatCode(flyway::migrate).doesNotThrowAnyException();
+        assertThat(readDocuments(dataSource)).hasSize(1);
+    }
+
+    private static DataSource createTestDataSource() throws SQLException {
+        String databaseName = "migration_test_" + UUID.randomUUID().toString().replace("-", "");
+        try (Connection connection = POSTGRES.createConnection("");
+             Statement statement = connection.createStatement()) {
+            statement.execute("CREATE DATABASE " + databaseName);
+        }
+        return new DriverManagerDataSource(
+                "jdbc:postgresql://" + POSTGRES.getHost() + ":"
+                        + POSTGRES.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT) + "/" + databaseName,
+                POSTGRES.getUsername(),
+                POSTGRES.getPassword());
+    }
+
+    private static Flyway flywayUsingApplicationConfiguration(
+            DataSource dataSource, String... migrationLocations) throws Exception {
         ConfigurableEnvironment environment = new StandardEnvironment();
         PropertySource<?> applicationProperties = new YamlPropertySourceLoader()
                 .load("application", new ClassPathResource("application.yml"))
@@ -83,17 +170,22 @@ class LegacyDocumentMigrationTest {
                 environment.getRequiredProperty("spring.flyway.baseline-version"));
         assertThat(baselineOnMigrate).isTrue();
         assertThat(baselineVersion.getVersion()).isEqualTo("0");
+        String[] locations = migrationLocations.length == 0
+                ? environment.getProperty("spring.flyway.locations", "classpath:db/migration").split(",")
+                : migrationLocations;
 
         return Flyway.configure()
                 .dataSource(dataSource)
-                .locations("classpath:db/migration")
+                .locations(locations)
                 .schemas("public")
                 .baselineOnMigrate(baselineOnMigrate)
                 .baselineVersion(baselineVersion)
                 .load();
     }
 
-    private static void createLegacySchemaAndData(DataSource dataSource) throws SQLException {
+    private static void createLegacySchemaAndData(
+            DataSource dataSource, boolean includeUploadingDocument, boolean includeLegacyStatusConstraint)
+            throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             try (Statement statement = connection.createStatement()) {
                 statement.execute("""
@@ -122,8 +214,12 @@ class LegacyDocumentMigrationTest {
                             chunk_count integer NOT NULL,
                             uploaded_by uuid NOT NULL,
                             uploaded_at timestamp(6) with time zone NOT NULL
+                            %s
                         )
-                        """);
+                        """.formatted(includeLegacyStatusConstraint
+                        ? ", CONSTRAINT document_records_status_check CHECK "
+                                + "(status IN ('UPLOADING', 'PROCESSING', 'READY', 'FAILED'))"
+                        : ""));
             }
 
             try (PreparedStatement session = connection.prepareStatement("""
@@ -153,8 +249,10 @@ class LegacyDocumentMigrationTest {
                         (id, filename, content_type, size_bytes, status, chunk_count, uploaded_by, uploaded_at)
                     VALUES (?, ?, 'application/pdf', ?, ?, ?, ?, ?)
                     """)) {
-                insertDocument(document, "00000000-0000-0000-0000-000000000301",
-                        "uploading.pdf", 101L, "UPLOADING", 0, "2026-02-03T04:05:06Z");
+                if (includeUploadingDocument) {
+                    insertDocument(document, "00000000-0000-0000-0000-000000000301",
+                            "uploading.pdf", 101L, "UPLOADING", 0, "2026-02-03T04:05:06Z");
+                }
                 insertDocument(document, "00000000-0000-0000-0000-000000000302",
                         "processing.pdf", 202L, "PROCESSING", 1, "2026-02-04T05:06:07Z");
                 insertDocument(document, "00000000-0000-0000-0000-000000000303",
@@ -179,6 +277,23 @@ class LegacyDocumentMigrationTest {
         statement.executeUpdate();
     }
 
+    private static void insertUploadedDocument(DataSource dataSource) throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement document = connection.prepareStatement("""
+                     INSERT INTO document_records
+                         (id, filename, content_type, size_bytes, status, chunk_count, uploaded_by, uploaded_at)
+                     VALUES (?, ?, 'application/pdf', ?, 'UPLOADED', 0, ?, ?)
+                     """)) {
+            document.setObject(1, UUID.fromString("00000000-0000-0000-0000-000000000399"));
+            document.setString(2, "uploaded.pdf");
+            document.setLong(3, 399L);
+            document.setObject(4, OWNER_ID);
+            document.setObject(5, OffsetDateTime.ofInstant(
+                    Instant.parse("2026-02-09T10:11:12Z"), ZoneOffset.UTC));
+            document.executeUpdate();
+        }
+    }
+
     private static List<DocumentSnapshot> readDocuments(DataSource dataSource) throws SQLException {
         List<DocumentSnapshot> documents = new ArrayList<>();
         try (Connection connection = dataSource.getConnection();
@@ -201,6 +316,22 @@ class LegacyDocumentMigrationTest {
             }
         }
         return documents;
+    }
+
+    private static boolean statusConstraintExists(DataSource dataSource) throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+             PreparedStatement query = connection.prepareStatement("""
+                     SELECT EXISTS (
+                         SELECT 1
+                         FROM pg_constraint
+                         WHERE conrelid = 'public.document_records'::regclass
+                           AND conname = 'document_records_status_check'
+                     )
+                     """);
+             ResultSet row = query.executeQuery()) {
+            row.next();
+            return row.getBoolean(1);
+        }
     }
 
     private static List<FlywayHistory> readFlywayHistory(DataSource dataSource) throws SQLException {
