@@ -39,15 +39,15 @@ Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
 | Method and path | Planned behavior | Planned success response |
 | --- | --- | --- |
-| `GET /api/documents` | Return the authenticated user's documents, newest first. | `200 OK`, JSON array of `DocumentResponse` objects. |
-| `GET /api/documents/{id}` | Retrieve a document owned by the authenticated user. | `200 OK`, one `DocumentResponse`. |
-| `DELETE /api/documents/{id}` | Delete an owned document. | `204 No Content`. |
+| `GET /api/documents` | Return the authenticated user's documents, newest first (USER: own documents; ADMIN: all documents). | `200 OK`, JSON array of `DocumentResponse` objects. |
+| `GET /api/documents/{id}` | Retrieve a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
+| `DELETE /api/documents/{id}` | Delete a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `204 No Content`. |
 
-Authentication and exact not-found behavior for these endpoints depend on the pending Security/API integration.
+Authentication is planned (see the Authentication section). Not-found behavior is decided: a missing document, or a document of another user (for a USER), returns 404 with a ProblemDetail.
 
 ### Ingestion status
 
-The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. Status changes are owned by the backend ingestion service; the service integration is pending. Once document endpoints are implemented, the frontend will poll `GET /api/documents/{id}` to observe status changes. Deletion of associated vector chunks is also pending.
+The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. Status changes are owned by the backend ingestion service; the service integration is pending. Once document endpoints are implemented, the frontend will poll `GET /api/documents/{id}` to observe status changes. Deletion of associated vector chunks is also pending. Planned design: every chunk carries documentId and ownerId metadata, and DELETE removes the document chunks first, then the record, in one transactional service method (retrying a failed delete is safe).
 
 ## Upload
 
@@ -66,6 +66,7 @@ The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. S
 | `POST /api/auth/login` | Planned |
 | `POST /api/auth/register` | Planned |
 | Bearer token on protected endpoints | Planned |
+| Owner-scoped document access, ADMIN can manage all documents | Planned |
 | 401 response from the Security module (example below) | Planned; the shape is a target, not live behavior |
 | `ProblemDetail` format for validation and server errors | Implemented (`GlobalExceptionHandler`) |
 
@@ -101,7 +102,7 @@ Request: `{ "email": "...", "password": "..." }` (password at least 8 characters
 Send `Authorization: Bearer <token>` on every request except `/api/auth/**`.
 A missing, invalid or expired token returns 401 with a `ProblemDetail`.
 
-Roles: `USER` can chat. `ADMIN` can also upload and delete documents.
+Roles: `USER` can upload, list, delete and chat over their own documents. `ADMIN` can additionally list, read and delete any user's documents (chat stays owner-scoped for everyone). `register` always creates a `USER`; `ADMIN` accounts are seeded for dev. The JWT subject (`sub`) is the user's UUID, with `email` and `role` claims. Another user's document returns 404, not 403.
 Dev-only test accounts will be seeded by the Security role and listed here.
 
 ## Errors
