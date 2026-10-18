@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -61,6 +62,17 @@ class GlobalExceptionHandlerHttpTest {
     }
 
     @Test
+    void returnsSanitizedProblemForDatabaseFailure() throws Exception {
+        mockMvc.perform(get("/probe/database-unavailable"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Service unavailable")))
+                .andExpect(jsonPath("$.status", equalTo(503)))
+                .andExpect(jsonPath("$.detail",
+                        equalTo("A required service is temporarily unavailable")));
+    }
+
+    @Test
     void returnsInternalServerErrorProblemForUnexpectedFailure() throws Exception {
         mockMvc.perform(get("/probe/unexpected"))
                 .andExpect(status().isInternalServerError())
@@ -84,6 +96,11 @@ class GlobalExceptionHandlerHttpTest {
         @GetMapping("/unavailable")
         void unavailable() {
             throw new ServiceUnavailableException("AI service is unavailable", new IllegalStateException());
+        }
+
+        @GetMapping("/database-unavailable")
+        void databaseUnavailable() {
+            throw new DataAccessResourceFailureException("database credentials must not be exposed");
         }
 
         @GetMapping("/unexpected")
