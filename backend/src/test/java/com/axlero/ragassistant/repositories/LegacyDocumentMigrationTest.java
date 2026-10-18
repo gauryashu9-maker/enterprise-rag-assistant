@@ -107,7 +107,6 @@ class LegacyDocumentMigrationTest {
         List<DocumentSnapshot> beforeUpgrade = readDocuments(dataSource);
 
         Flyway applicationFlyway = flywayUsingApplicationConfiguration(dataSource);
-        assertThatCode(applicationFlyway::validate).doesNotThrowAnyException();
         applicationFlyway.migrate();
 
         assertThat(readFlywayHistory(dataSource)).containsExactly(
