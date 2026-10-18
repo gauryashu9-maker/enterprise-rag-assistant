@@ -55,7 +55,62 @@ The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. S
 
 ## RAG / Ask
 
-**TBD — owned by the RAG module.** The backend currently exposes `POST /api/rag/ask` and its request DTO requires a non-blank `question`. Confirm the frontend request/response contract, citations, error behavior, and authentication requirements with the RAG owner before relying on this route.
+### POST /api/rag/ask
+
+Ask a question about the uploaded documents. The answer is generated only from the retrieved document chunks.
+
+Status: **implemented**. Authentication and per-user filtering are planned (see Authentication).
+
+Request:
+
+```json
+{ "question": "How many days of annual leave do I get?" }
+```
+
+`question` is required and must not be blank.
+
+200 OK:
+
+```json
+{
+  "answer": "Employees get 24 days of paid annual leave per calendar year.",
+  "citations": [
+    {
+      "documentName": "hr-policy.pdf",
+      "page": 1,
+      "snippet": "Employees get 24 days of paid annual leave per calendar year. Up to 5 unused days can carry over."
+    }
+  ]
+}
+```
+
+- `citations` lists the retrieved chunks the answer was built from, best match first. The number varies (up to 5).
+- `page` can be `null`. `snippet` is at most about 200 characters and ends with `...` when cut. `documentName` is `unknown` when a chunk has no filename.
+
+When no relevant chunk is found, or the model has no answer, the response is still 200 OK:
+
+```json
+{ "answer": "I don't have that information in the uploaded documents.", "citations": [] }
+```
+
+Show this as a normal message without sources, not as an error.
+
+400 Bad Request (blank or missing `question`), verified against the running app:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Validation failed",
+  "status": 400,
+  "detail": "Request validation failed",
+  "instance": "/api/rag/ask",
+  "errors": { "question": "must not be blank" }
+}
+```
+
+500 `ProblemDetail` with a generic message when the model or vector store fails (a 503 mapping is planned). 401 applies once authentication is enabled (planned).
+
+Answers can take several seconds, so show a loading state. A streaming endpoint is planned and its contract is **TBD**.
 
 ## Authentication
 
