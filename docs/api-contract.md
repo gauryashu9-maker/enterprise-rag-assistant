@@ -39,7 +39,7 @@ Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
 | Method and path | Planned behavior | Planned success response |
 | --- | --- | --- |
-| `GET /api/documents` | Return the authenticated user's documents, newest first (USER: own documents; ADMIN: all documents). | `200 OK`, JSON array of `DocumentResponse` objects. |
+| `GET /api/documents` | Return documents, newest first: a USER gets their own documents, an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
 | `GET /api/documents/{id}` | Retrieve a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
 | `DELETE /api/documents/{id}` | Delete a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `204 No Content`. |
 
