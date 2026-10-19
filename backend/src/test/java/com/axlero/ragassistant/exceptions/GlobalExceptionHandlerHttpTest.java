@@ -60,6 +60,24 @@ class GlobalExceptionHandlerHttpTest {
     }
 
     @Test
+    void returnsSanitizedBadRequestProblemForUnexpectedJsonToken() throws Exception {
+        mockMvc.perform(post("/probe/validation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\": UNEXPECTED_SECRET_TOKEN}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Malformed request")))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.detail", equalTo("Request body is missing or invalid")))
+                .andExpect(content().string(not(containsString("UNEXPECTED_SECRET_TOKEN"))))
+                .andExpect(content().string(not(containsString("Unrecognized token"))))
+                .andExpect(content().string(not(containsString("Unexpected character"))))
+                .andExpect(content().string(not(containsString("JsonParseException"))))
+                .andExpect(content().string(not(containsString("JsonMappingException"))))
+                .andExpect(content().string(not(containsString("HttpMessageNotReadableException"))));
+    }
+
+    @Test
     void returnsNotFoundProblemForMissingResource() throws Exception {
         mockMvc.perform(get("/probe/missing"))
                 .andExpect(status().isNotFound())
