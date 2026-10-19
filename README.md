@@ -45,10 +45,13 @@ scripts/    Repo/team bootstrap
 Prereqs: JDK 21, Maven 3.9+, Docker Desktop, Node 20+.
 
 ```bash
-cp .env.example .env            # then put your OPENAI_API_KEY in .env
+cp .env.example .env            # set OPENAI_API_KEY and JWT_SECRET in .env
+openssl rand -base64 32         # copy the output into JWT_SECRET
 docker compose up -d            # starts Postgres + pgvector
 cd backend && mvn spring-boot:run
 ```
+
+The app requires `JWT_SECRET` to be Base64-encoded random data of at least 32 bytes and will not start without it. `/actuator/health` is public. Other API routes require a bearer JWT; the login endpoint will be added by the separate Security B task.
 
 Smoke test the LLM connection: `GET http://localhost:8080/api/ai/ping`
 
