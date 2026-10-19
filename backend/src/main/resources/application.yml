@@ -3,7 +3,13 @@ app:
     top-k: 5
     similarity-threshold: 0.55
     relative-cutoff: 0.85
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration: PT15M
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   application:
     name: rag-assistant
 

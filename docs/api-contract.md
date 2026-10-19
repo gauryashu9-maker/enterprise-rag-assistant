@@ -114,16 +114,18 @@ Answers can take several seconds, so show a loading state. A streaming endpoint 
 
 ## Authentication
 
-**PLANNED, not implemented yet.** The authentication endpoints below are the agreed contract for the Security module. Until they exist, the frontend uses mock auth.
+**Authentication endpoints are planned.** JWT authentication for protected endpoints is implemented; until login and registration exist, the frontend uses mock auth.
 
 | Item | Status |
 |---|---|
 | `POST /api/auth/login` | Planned |
 | `POST /api/auth/register` | Planned |
-| Bearer token on protected endpoints | Planned |
+| JWT authentication on protected endpoints | Implemented |
 | Owner-scoped document access, ADMIN can manage all documents | Planned |
-| 401 response from the Security module (example below) | Planned; the shape is a target, not live behavior |
+| 401 response for missing, invalid, or expired bearer tokens | Implemented |
 | `ProblemDetail` format for validation and server errors | Implemented (`GlobalExceptionHandler`) |
+
+Protected endpoints require a bearer JWT. The verified JWT subject is the user's UUID, with `email` and `role` claims. Tokens expire after 15 minutes. Configure `JWT_SECRET` as a Base64-encoded value of at least 32 random bytes; the application fails to start if it is missing, malformed, or too short. Missing, invalid, or expired tokens return a sanitized 401 `ProblemDetail`. Authenticated principals use the shared `AuthenticatedUser(UUID id, String email, Role role)` contract.
 
 ### POST /api/auth/login
 
@@ -154,7 +156,7 @@ Request: `{ "email": "...", "password": "..." }` (password at least 8 characters
 
 ### Using the token
 
-Send `Authorization: Bearer <token>` on every request except `/api/auth/**`.
+Send `Authorization: Bearer <jwt>` on every protected request except `/api/auth/**`, `/v3/api-docs/**`, `/swagger-ui/**`, and `/actuator/health`.
 A missing, invalid or expired token returns 401 with a `ProblemDetail`.
 
 Roles: `USER` can upload, list, delete and chat over their own documents. `ADMIN` can additionally list, read and delete any user's documents (chat stays owner-scoped for everyone). `register` always creates a `USER`; `ADMIN` accounts are seeded for dev. The JWT subject (`sub`) is the user's UUID, with `email` and `role` claims. Another user's document returns 404, not 403.
