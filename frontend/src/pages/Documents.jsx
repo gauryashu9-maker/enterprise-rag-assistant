@@ -39,16 +39,23 @@ export default function Documents() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await listDocuments()
-        setDocuments(data)
-      } catch (err) {
-        setError(err.response?.data?.detail || err.message || 'Failed to load documents')
-      } finally {
-        setLoading(false)
-      }
+  const data = await listDocuments()
+
+  if (!Array.isArray(data)) {
+    throw new Error('Invalid response while loading documents')
+  }
+
+  setDocuments(data)
+} catch (err) {
+  setError(err.response?.data?.detail || err.message || 'Failed to load documents')
+} finally {
+  setLoading(false)
+}
     }
+
     load()
   }, [])
+
 
   return (
     <div style={{ maxWidth: 800, margin: '32px auto', padding: '0 16px' }}>
@@ -78,7 +85,7 @@ export default function Documents() {
                     <div style={{ color: 'crimson', fontSize: 12 }}>{doc.errorMessage}</div>
                   )}
                 </td>
-                <td>{new Date(doc.uploadedAt).toLocaleString()}</td>
+                <td>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString(): '-'}</td>
                 <td>{formatSize(doc.sizeBytes)}</td>
               </tr>
             ))}
