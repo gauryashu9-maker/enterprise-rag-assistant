@@ -56,8 +56,8 @@ public class RagServiceImpl implements RagService {
 
     private Citation toCitation(Document doc) {
         Map<String, Object> meta = doc.getMetadata();
-        String name = String.valueOf(meta.getOrDefault("filename", "unknown"));
-        Object rawPage = meta.getOrDefault("page", meta.get("page_number"));
+        String name = String.valueOf(meta.getOrDefault(ChunkMetadata.FILENAME, "unknown"));
+        Object rawPage = meta.getOrDefault(ChunkMetadata.PAGE, meta.get("page_number"));
         Integer page = rawPage instanceof Number n ? n.intValue() : null;
         String text = doc.getText() == null ? "" : doc.getText();
         String snippet = text.length() <= SNIPPET_LENGTH ? text : text.substring(0, SNIPPET_LENGTH) + "...";
