@@ -53,6 +53,36 @@ The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. S
 
 **TBD — owned by the upload/ingestion module.** The upload route, multipart field names, accepted file types and limits, response shape, and whether upload returns immediately or waits for ingestion have not been confirmed. Do not infer them from the `DocumentResponse` DTO.
 
+## Chat conversation data
+
+The backend data layer provides `ChatConversationResponse` for an authenticated user's conversation. It contains the existing `ChatSessionResponse` under `session` and an ordered `messages` array of existing `ChatMessageResponse` values. The same owner-only rule applies to USER and ADMIN; a conversation owned by another account or a missing conversation is not found. No HTTP route is defined here.
+
+```json
+{
+  "session": {
+    "id": "12345678-1234-5678-1234-567812345678",
+    "userId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "createdAt": "2026-10-20T10:00:00Z"
+  },
+  "messages": [
+    {
+      "id": "11111111-2222-3333-4444-555555555555",
+      "sessionId": "12345678-1234-5678-1234-567812345678",
+      "role": "USER",
+      "content": "How many days off?",
+      "createdAt": "2026-10-20T10:00:01Z"
+    },
+    {
+      "id": "66666666-7777-8888-9999-aaaaaaaaaaaa",
+      "sessionId": "12345678-1234-5678-1234-567812345678",
+      "role": "ASSISTANT",
+      "content": "You get 24 days.",
+      "createdAt": "2026-10-20T10:00:02Z"
+    }
+  ]
+}
+```
+
 ## RAG / Ask
 
 ### POST /api/rag/ask
