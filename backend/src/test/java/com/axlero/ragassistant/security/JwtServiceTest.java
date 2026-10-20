@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.entities.Role;
+import com.axlero.ragassistant.services.JwtService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
@@ -28,11 +29,30 @@ class JwtServiceTest {
     }
 
     @Test
-    void generatesAndParsesUserClaims() {
+    void exposesExactGenerateTokenSignature() throws NoSuchMethodException {
+        var method = JwtService.class.getMethod(
+                "generateToken", UUID.class, String.class, Role.class);
+
+        assertEquals(String.class, method.getReturnType());
+    }
+
+    @Test
+    void generatesExpectedClaimsAndParsesVerifiedUser() {
         UUID userId = UUID.randomUUID();
 
         String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
 
+        var claims = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        assertEquals(userId.toString(), claims.getSubject());
+        assertEquals("user@example.com", claims.get("email", String.class));
+        assertEquals(Role.USER.name(), claims.get("role", String.class));
+        assertEquals(
+                Duration.ofMinutes(15).toMillis(),
+                claims.getExpiration().getTime() - claims.getIssuedAt().getTime());
         assertEquals(
                 new AuthenticatedUser(userId, "user@example.com", Role.USER),
                 jwtService.parseToken(token));

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.entities.Role;
+import com.axlero.ragassistant.services.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Base64;

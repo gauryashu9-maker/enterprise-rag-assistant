@@ -1,10 +1,9 @@
-package com.axlero.ragassistant.security;
+package com.axlero.ragassistant.services;
 
 import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.entities.Role;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.security.Keys;
 import java.time.Duration;

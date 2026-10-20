@@ -108,7 +108,7 @@ Show this as a normal message without sources, not as an error.
 }
 ```
 
-500 `ProblemDetail` with a generic message when the model or vector store fails (a 503 mapping is planned). 401 applies once authentication is enabled (planned).
+500 `ProblemDetail` with a generic message when the model or vector store fails (a 503 mapping is planned). Protected endpoints return 401 when the bearer token is missing, invalid, or expired.
 
 Answers can take several seconds, so show a loading state. A streaming endpoint is planned and its contract is **TBD**.
 
@@ -228,4 +228,4 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
 
 ### Authentication-related statuses
 
-`401 Unauthorized` and `403 Forbidden` apply once authentication and authorization are enabled. The planned `401` response for login is described in the Authentication section above (planned, not implemented). The `403` response body is **TBD with the Security module**. Neither is produced by the current `GlobalExceptionHandler`, so do not assume the validation and not-found examples describe them.
+Missing, invalid, malformed, expired, or tampered bearer tokens return a sanitized `401 Unauthorized` `ProblemDetail`. An authenticated user who lacks the required authority receives a sanitized `403 Forbidden` `ProblemDetail`. Both responses include the request path in `instance` and omit token contents and internal exception details. These responses are produced by the security handlers, not `GlobalExceptionHandler`.

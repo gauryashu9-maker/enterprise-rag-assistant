@@ -1,6 +1,7 @@
 package com.axlero.ragassistant.security;
 
 import com.axlero.ragassistant.dto.AuthenticatedUser;
+import com.axlero.ragassistant.services.JwtService;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

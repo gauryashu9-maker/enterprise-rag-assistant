@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.axlero.ragassistant.services.JwtService;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.BeansException;
