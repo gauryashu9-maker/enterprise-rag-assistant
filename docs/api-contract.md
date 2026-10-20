@@ -33,15 +33,13 @@ The confirmed response DTO is `DocumentResponse`. UUIDs are serialized as string
 
 Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
-### Planned document endpoints
+### Document endpoints
 
-**These HTTP endpoints are PLANNED and are not implemented yet.** The backend currently has owner-scoped repository queries, but no document controller. The response examples above describe the DTO, not a live HTTP response.
-
-| Method and path | Planned behavior | Planned success response |
-| --- | --- | --- |
-| `GET /api/documents` | Return documents, newest first: a USER gets their own documents, an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
-| `GET /api/documents/{id}` | Retrieve a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
-| `DELETE /api/documents/{id}` | Delete a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `204 No Content`. |
+| Method and path | Status | Behavior | Success response |
+| --- | --- | --- | --- |
+| `GET /api/documents` | Planned | Return documents, newest first: a USER gets their own documents, an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
+| `GET /api/documents/{id}` | Planned | Retrieve a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
+| `DELETE /api/documents/{id}` | Implemented | Delete a document and its vector chunks. Authorizes first: a USER can only delete owned documents (cross-owner returns 404); an ADMIN can delete any document. Deletes vector chunks by `documentId` filter first, then removes the database record. If vector deletion fails, returns 503 and preserves the database record. | `204 No Content`. |
 
 Authentication is planned (see the Authentication section). Not-found behavior is decided: a missing document, or a document of another user (for a USER), returns 404 with a ProblemDetail.
 
