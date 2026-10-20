@@ -18,6 +18,7 @@ import com.axlero.ragassistant.entities.Role;
 import com.axlero.ragassistant.services.JwtService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
@@ -27,6 +28,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -39,14 +42,21 @@ import org.springframework.test.web.servlet.MockMvc;
     JwtService.class,
     SecurityProblemHandler.class
 })
-@TestPropertySource(properties = {
-    "JWT_SECRET=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
-    "app.security.jwt.expiration=PT15M"
-})
+@TestPropertySource(properties = "app.security.jwt.expiration=PT15M")
 class SecurityConfigHttpTest {
 
-    private static final String TEST_SECRET =
-            "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=";
+    private static final String TEST_SECRET;
+
+    static {
+        byte[] keyBytes = new byte[32];
+        new SecureRandom().nextBytes(keyBytes);
+        TEST_SECRET = Base64.getEncoder().encodeToString(keyBytes);
+    }
+
+    @DynamicPropertySource
+    static void configureProperties(DynamicPropertyRegistry registry) {
+        registry.add("JWT_SECRET", () -> TEST_SECRET);
+    }
 
     @Autowired
     private MockMvc mockMvc;
