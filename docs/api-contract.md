@@ -37,11 +37,11 @@ Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
 The list and get endpoints are implemented. They use the authenticated principal populated by the JWT filter; the frontend must not supply a user ID to select an owner. Authentication enforcement depends on Security PR #39 being merged.
 
-| Method and path | Behavior | Success response |
-| --- | --- | --- |
-| `GET /api/documents` | Return documents, newest first: a USER gets their own documents; an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
-| `GET /api/documents/{id}` | Retrieve the owner's document, or any document for ADMIN. A missing document or another user's document returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
-| `DELETE /api/documents/{id}` | Not implemented: safe deletion is blocked until ingestion provides document-scoped vector deletion. | TBD |
+| Method and path | Status | Behavior | Success response |
+| --- | --- | --- | --- |
+| `GET /api/documents` | Implemented | Return documents, newest first: a USER gets their own documents; an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
+| `GET /api/documents/{id}` | Implemented | Retrieve the owner's document, or any document for ADMIN. A missing document or another user's document returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
+| `DELETE /api/documents/{id}` | Planned | Safe deletion is blocked until ingestion provides document-scoped vector deletion. | TBD |
 
 Not-found responses use a ProblemDetail. Document endpoints require Security PR #39's authenticated principal integration before they can be safely exposed.
 
