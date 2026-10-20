@@ -9,23 +9,31 @@ import com.axlero.ragassistant.services.JwtService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class JwtServiceTest {
 
-    private static final String SECRET =
-            "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=";
+    private static String testSecret;
+
+    @BeforeAll
+    static void generateTestSecret() {
+        byte[] keyBytes = new byte[32];
+        new SecureRandom().nextBytes(keyBytes);
+        testSecret = Base64.getEncoder().encodeToString(keyBytes);
+    }
 
     private JwtService jwtService;
 
     @BeforeEach
     void setUp() {
-        jwtService = new JwtService(SECRET, Duration.ofMinutes(15));
+        jwtService = new JwtService(testSecret, Duration.ofMinutes(15));
     }
 
     @Test
@@ -43,7 +51,7 @@ class JwtServiceTest {
         String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
 
         var claims = Jwts.parser()
-                .verifyWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)))
+                .verifyWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(testSecret)))
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -60,8 +68,10 @@ class JwtServiceTest {
 
     @Test
     void rejectsTokenSignedWithDifferentSecret() {
+        byte[] otherKeyBytes = new byte[32];
+        new SecureRandom().nextBytes(otherKeyBytes);
         JwtService otherService = new JwtService(
-                Base64.getEncoder().encodeToString(new byte[32]),
+                Base64.getEncoder().encodeToString(otherKeyBytes),
                 Duration.ofMinutes(15));
         String token = jwtService.generateToken(UUID.randomUUID(), "user@example.com", Role.USER);
 
@@ -77,7 +87,7 @@ class JwtServiceTest {
                 .claim("role", Role.USER.name())
                 .issuedAt(new Date(0L))
                 .expiration(expired)
-                .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)), Jwts.SIG.HS256)
+                .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(testSecret)), Jwts.SIG.HS256)
                 .compact();
 
         assertThrows(JwtException.class, () -> jwtService.parseToken(token));
@@ -90,7 +100,7 @@ class JwtServiceTest {
                 .claim("email", "user@example.com")
                 .claim("role", Role.USER.name())
                 .issuedAt(new Date())
-                .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)), Jwts.SIG.HS256)
+                .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(testSecret)), Jwts.SIG.HS256)
                 .compact();
 
         assertThrows(JwtException.class, () -> jwtService.parseToken(token));
@@ -111,8 +121,10 @@ class JwtServiceTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new JwtService("not base64", Duration.ofMinutes(15)));
+        byte[] shortBytes = new byte[31];
+        new SecureRandom().nextBytes(shortBytes);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new JwtService(Base64.getEncoder().encodeToString(new byte[31]), Duration.ofMinutes(15)));
+                () -> new JwtService(Base64.getEncoder().encodeToString(shortBytes), Duration.ofMinutes(15)));
     }
 }

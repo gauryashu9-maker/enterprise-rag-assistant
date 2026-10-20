@@ -9,10 +9,12 @@ import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.entities.Role;
 import com.axlero.ragassistant.services.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -22,15 +24,21 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 class JwtAuthenticationFilterTest {
 
-    private static final String SECRET =
-            "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=";
+    private static String testSecret;
+
+    @BeforeAll
+    static void generateTestSecret() {
+        byte[] keyBytes = new byte[32];
+        new SecureRandom().nextBytes(keyBytes);
+        testSecret = Base64.getEncoder().encodeToString(keyBytes);
+    }
 
     private JwtService jwtService;
     private JwtAuthenticationFilter filter;
 
     @BeforeEach
     void setUp() {
-        jwtService = new JwtService(SECRET, Duration.ofMinutes(15));
+        jwtService = new JwtService(testSecret, Duration.ofMinutes(15));
         filter = new JwtAuthenticationFilter(jwtService, new SecurityProblemHandler(new ObjectMapper()));
         SecurityContextHolder.clearContext();
     }
@@ -62,7 +70,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void rejectsMalformedBearerTokenWithoutExposingIt() throws Exception {
-        String token = "secret-invalid-token";
+        String token = "malformed-invalid-token";
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/private");
         request.addHeader("Authorization", "Bearer " + token);
