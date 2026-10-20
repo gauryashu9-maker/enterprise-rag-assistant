@@ -77,3 +77,15 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md). Short version: **every member commits e
 ## Layered architecture
 
 Controllers take/return DTO Records and contain no business logic. Services hold business rules and `@Transactional` boundaries. Repositories talk to the database. Entities never leave the service layer. Errors go through one `@RestControllerAdvice` returning RFC 7807 `ProblemDetail`.
+
+## Local Environment Verification & Credentials
+
+### Default Credentials
+- **Admin**: `admin@example.com` / `password`
+- **User**: `user@example.com` / `password`
+
+### Prerequisites & Verification Notes
+- **Docker**: PostgreSQL with `pgvector` extension running on port 5432.
+- **Backend**: Spring Boot 3 running on port 8080 (Java 21).
+- **Frontend**: Vite + React running on port 5173 (Node.js 20+ required).
+- **PowerShell Note**: If script execution is restricted on Windows, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
