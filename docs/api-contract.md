@@ -33,21 +33,21 @@ The confirmed response DTO is `DocumentResponse`. UUIDs are serialized as string
 
 Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
-### Planned document endpoints
+### Document endpoints
 
-**These HTTP endpoints are PLANNED and are not implemented yet.** The backend currently has owner-scoped repository queries, but no document controller. The response examples above describe the DTO, not a live HTTP response.
+The list and get endpoints are implemented. They use the authenticated principal populated by the JWT filter; the frontend must not supply a user ID to select an owner. Authentication enforcement depends on Security PR #39 being merged.
 
-| Method and path | Planned behavior | Planned success response |
+| Method and path | Behavior | Success response |
 | --- | --- | --- |
-| `GET /api/documents` | Return documents, newest first: a USER gets their own documents, an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
-| `GET /api/documents/{id}` | Retrieve a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
-| `DELETE /api/documents/{id}` | Delete a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `204 No Content`. |
+| `GET /api/documents` | Return documents, newest first: a USER gets their own documents; an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
+| `GET /api/documents/{id}` | Retrieve the owner's document, or any document for ADMIN. A missing document or another user's document returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
+| `DELETE /api/documents/{id}` | Not implemented: safe deletion is blocked until ingestion provides document-scoped vector deletion. | TBD |
 
-Authentication is planned (see the Authentication section). Not-found behavior is decided: a missing document, or a document of another user (for a USER), returns 404 with a ProblemDetail.
+Not-found responses use a ProblemDetail. Document endpoints require Security PR #39's authenticated principal integration before they can be safely exposed.
 
 ### Ingestion status
 
-The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. Status changes are owned by the backend ingestion service; the service integration is pending. Once document endpoints are implemented, the frontend will poll `GET /api/documents/{id}` to observe status changes. Deletion of associated vector chunks is also pending. Planned design: every chunk carries documentId and ownerId metadata, and DELETE removes the document chunks first, then the record, in one transactional service method (retrying a failed delete is safe).
+The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. Status changes are owned by the backend ingestion service; the service integration is pending. The frontend can poll `GET /api/documents/{id}` to observe status changes. The current development seed chunks and retrieval pipeline do not carry documentId/ownerId metadata, and no vector deletion operation is available. Do not delete a document record until ingestion supports deleting its associated vectors.
 
 ## Upload
 

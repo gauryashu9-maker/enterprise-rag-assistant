@@ -1,5 +1,6 @@
 package com.axlero.ragassistant.services;
 
+import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.dto.DocumentResponse;
 import com.axlero.ragassistant.entities.DocumentRecord;
 import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
@@ -18,11 +19,30 @@ public class DocumentQueryService {
         this.documentRecordRepository = documentRecordRepository;
     }
 
+    public List<DocumentResponse> listDocuments(AuthenticatedUser user) {
+        if (user.isAdmin()) {
+            return documentRecordRepository.findAllByOrderByUploadedAtDesc()
+                    .stream()
+                    .map(DocumentResponse::fromEntity)
+                    .toList();
+        }
+        return listDocuments(user.id());
+    }
+
     public List<DocumentResponse> listDocuments(UUID ownerId) {
         return documentRecordRepository.findAllByUploadedByOrderByUploadedAtDesc(ownerId)
                 .stream()
                 .map(DocumentResponse::fromEntity)
                 .toList();
+    }
+
+    public DocumentResponse getDocument(UUID documentId, AuthenticatedUser user) {
+        if (user.isAdmin()) {
+            DocumentRecord document = documentRecordRepository.findById(documentId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
+            return DocumentResponse.fromEntity(document);
+        }
+        return getDocument(documentId, user.id());
     }
 
     public DocumentResponse getDocument(UUID documentId, UUID ownerId) {
