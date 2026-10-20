@@ -1,31 +1,41 @@
 package com.axlero.ragassistant.repositories;
 
+import com.axlero.ragassistant.dto.AuthenticatedUser;
+import com.axlero.ragassistant.dto.ChatConversationResponse;
 import com.axlero.ragassistant.entities.ChatMessage;
 import com.axlero.ragassistant.entities.ChatMessageRole;
 import com.axlero.ragassistant.entities.ChatSession;
 import com.axlero.ragassistant.entities.DocumentRecord;
 import com.axlero.ragassistant.entities.DocumentStatus;
+import com.axlero.ragassistant.entities.Role;
+import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
+import com.axlero.ragassistant.services.ChatConversationQueryService;
+import org.hibernate.Hibernate;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.hibernate.Hibernate;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Testcontainers(disabledWithoutDocker = true)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(ChatConversationQueryService.class)
 class DataRepositoriesTest {
 
     @Container
@@ -49,6 +59,9 @@ class DataRepositoriesTest {
 
     @Autowired
     private TestEntityManager entityManager;
+
+    @Autowired
+    private ChatConversationQueryService conversationQueryService;
 
     @Test
     void savesDocumentRecord() {
@@ -105,5 +118,96 @@ class DataRepositoriesTest {
         assertThat(reloadedMessage.getRole()).isEqualTo(ChatMessageRole.USER);
         assertThat(Hibernate.isInitialized(reloadedMessage.getSession())).isFalse();
         assertThat(reloadedMessage.getSession().getId()).isEqualTo(savedSession.getId());
+    }
+
+    @Test
+    void retrievesConversationWithOrderedMessagesAndEnforcesOwnerScope() {
+        UUID ownerId = UUID.randomUUID();
+        UUID otherOwnerId = UUID.randomUUID();
+        AuthenticatedUser owner = new AuthenticatedUser(ownerId, "owner@example.com", Role.USER);
+        AuthenticatedUser otherUser = new AuthenticatedUser(otherOwnerId, "other@example.com", Role.USER);
+        ChatSession ownedSession = new ChatSession(ownerId);
+        ownedSession.addMessage(new ChatMessage(ChatMessageRole.USER, "First question"));
+        ownedSession.addMessage(new ChatMessage(ChatMessageRole.ASSISTANT, "First answer"));
+        ownedSession.addMessage(new ChatMessage(ChatMessageRole.USER, "Second question"));
+        ChatSession savedSession = chatSessions.saveAndFlush(ownedSession);
+        entityManager.clear();
+
+        ChatConversationResponse response = conversationQueryService.getConversation(savedSession.getId(), owner);
+
+        assertThat(response.session().id()).isEqualTo(savedSession.getId());
+        assertThat(response.session().userId()).isEqualTo(ownerId);
+        assertThat(response.messages())
+                .extracting(message -> message.role().name() + ": " + message.content())
+                .containsExactly(
+                        "USER: First question",
+                        "ASSISTANT: First answer",
+                        "USER: Second question");
+        assertThatThrownBy(() -> conversationQueryService.getConversation(savedSession.getId(), otherUser))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Conversation not found");
+        assertThatThrownBy(() -> conversationQueryService.getConversation(UUID.randomUUID(), owner))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Conversation not found");
+    }
+
+    @Test
+    void adminConversationAccessRemainsOwnerScoped() {
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedUser admin = new AuthenticatedUser(UUID.randomUUID(), "admin@example.com", Role.ADMIN);
+        ChatSession session = chatSessions.saveAndFlush(new ChatSession(ownerId));
+        entityManager.clear();
+
+        assertThatThrownBy(() -> conversationQueryService.getConversation(session.getId(), admin))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Conversation not found");
+    }
+
+    @Test
+    void retrievesEmptyConversationWithEmptyMessageList() {
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedUser owner = new AuthenticatedUser(ownerId, "owner@example.com", Role.USER);
+        ChatSession session = chatSessions.saveAndFlush(new ChatSession(ownerId));
+        entityManager.clear();
+
+        ChatConversationResponse response = conversationQueryService.getConversation(session.getId(), owner);
+
+        assertThat(response.messages()).isEmpty();
+    }
+
+    @Test
+    void entityGraphReducesConversationFetchFromTwoSqlStatementsToOne() {
+        UUID ownerId = UUID.randomUUID();
+        ChatSession session = new ChatSession(ownerId);
+        session.addMessage(new ChatMessage(ChatMessageRole.USER, "Question"));
+        session.addMessage(new ChatMessage(ChatMessageRole.ASSISTANT, "Answer"));
+        ChatSession savedSession = chatSessions.saveAndFlush(session);
+        entityManager.clear();
+
+        Statistics statistics = entityManager.getEntityManager()
+                .getEntityManagerFactory()
+                .unwrap(SessionFactory.class)
+                .getStatistics();
+        statistics.clear();
+
+        ChatSession baseline = entityManager.find(ChatSession.class, savedSession.getId());
+        assertThat(Hibernate.isInitialized(baseline.getMessages())).isFalse();
+        assertThat(baseline.getMessages()).hasSize(2);
+        long baselineStatementCount = statistics.getPrepareStatementCount();
+
+        entityManager.clear();
+        statistics.clear();
+
+        ChatSession optimized = chatSessions.findByIdAndUserId(savedSession.getId(), ownerId).orElseThrow();
+        assertThat(Hibernate.isInitialized(optimized.getMessages())).isTrue();
+        assertThat(optimized.getMessages()).hasSize(2);
+        long optimizedStatementCount = statistics.getPrepareStatementCount();
+
+        assertThat(baselineStatementCount).isEqualTo(2);
+        assertThat(optimizedStatementCount).isEqualTo(1);
+        System.out.printf(
+                "Chat conversation SQL evidence: baseline=%d statements, entity-graph=%d statements%n",
+                baselineStatementCount,
+                optimizedStatementCount);
     }
 }

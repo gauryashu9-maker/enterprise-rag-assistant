@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -30,6 +31,7 @@ public class ChatSession {
     private Instant createdAt;
 
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("createdAt ASC, id ASC")
     private List<ChatMessage> messages = new ArrayList<>();
 
     protected ChatSession() {
