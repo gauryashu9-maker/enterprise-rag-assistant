@@ -1,5 +1,6 @@
 package com.axlero.ragassistant.exceptions;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -15,7 +17,8 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    ProblemDetail handleValidation(MethodArgumentNotValidException exception) {
+    ProblemDetail handleValidation(
+            MethodArgumentNotValidException exception, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, "Request validation failed");
         problem.setTitle("Validation failed");
@@ -23,35 +26,42 @@ public class GlobalExceptionHandler {
         exception.getBindingResult().getFieldErrors()
                 .forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
         problem.setProperty("errors", errors);
-        return problem;
+        return withInstance(problem, request);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    ProblemDetail handleUnreadableRequest(HttpMessageNotReadableException exception) {
+    ProblemDetail handleUnreadableRequest(
+            HttpMessageNotReadableException exception, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, "Request body is missing or invalid");
         problem.setTitle("Malformed request");
-        return problem;
+        return withInstance(problem, request);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    ProblemDetail handleNotFound(ResourceNotFoundException exception) {
+    ProblemDetail handleNotFound(ResourceNotFoundException exception, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
         problem.setTitle("Resource not found");
-        return problem;
+        return withInstance(problem, request);
     }
 
     @ExceptionHandler({ServiceUnavailableException.class, DataAccessException.class})
-    ProblemDetail handleServiceUnavailable(Exception exception) {
+    ProblemDetail handleServiceUnavailable(Exception exception, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.SERVICE_UNAVAILABLE, "A required service is temporarily unavailable");
         problem.setTitle("Service unavailable");
-        return problem;
+        return withInstance(problem, request);
     }
 
     @ExceptionHandler(Exception.class)
-    ProblemDetail handleGeneric(Exception exception) {
-        return ProblemDetail.forStatusAndDetail(
+    ProblemDetail handleGeneric(Exception exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
+        return withInstance(problem, request);
+    }
+
+    private ProblemDetail withInstance(ProblemDetail problem, HttpServletRequest request) {
+        problem.setInstance(URI.create(request.getRequestURI()));
+        return problem;
     }
 }

@@ -107,4 +107,40 @@ class DataDtoMappingTest {
         assertThat(messageResponse.content()).isEqualTo("The policy is documented.");
         assertThat(messageResponse.sessionId()).isEqualTo(session.getId());
     }
+
+    @Test
+    void serializesChatSessionResponseAccordingToJsonContract() throws IOException {
+        UUID id = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        UUID userId = UUID.fromString("11111111-1111-4111-8111-111111111111");
+        ChatSessionResponse response = new ChatSessionResponse(
+                id, userId, Instant.parse("2026-10-20T10:30:00Z"));
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(response));
+
+        assertThat(json.size()).isEqualTo(3);
+        assertThat(json.get("id").textValue()).isEqualTo(id.toString());
+        assertThat(json.get("userId").textValue()).isEqualTo(userId.toString());
+        assertThat(json.get("createdAt").textValue()).isEqualTo("2026-10-20T10:30:00Z");
+    }
+
+    @Test
+    void serializesChatMessageResponseAccordingToJsonContract() throws IOException {
+        UUID id = UUID.fromString("33333333-3333-4333-8333-333333333333");
+        UUID sessionId = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        ChatMessageResponse response = new ChatMessageResponse(
+                id,
+                sessionId,
+                ChatMessageRole.ASSISTANT,
+                "The policy is documented.",
+                Instant.parse("2026-10-20T10:31:00Z"));
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(response));
+
+        assertThat(json.size()).isEqualTo(5);
+        assertThat(json.get("id").textValue()).isEqualTo(id.toString());
+        assertThat(json.get("sessionId").textValue()).isEqualTo(sessionId.toString());
+        assertThat(json.get("role").textValue()).isEqualTo("ASSISTANT");
+        assertThat(json.get("content").textValue()).isEqualTo("The policy is documented.");
+        assertThat(json.get("createdAt").textValue()).isEqualTo("2026-10-20T10:31:00Z");
+    }
 }

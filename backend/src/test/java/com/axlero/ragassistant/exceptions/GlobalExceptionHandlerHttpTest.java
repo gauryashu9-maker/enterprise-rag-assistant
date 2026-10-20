@@ -43,6 +43,7 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Validation failed")))
                 .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
                 .andExpect(jsonPath("$.errors.name", equalTo("must not be blank")));
     }
 
@@ -56,6 +57,7 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(jsonPath("$.title", equalTo("Malformed request")))
                 .andExpect(jsonPath("$.status", equalTo(400)))
                 .andExpect(jsonPath("$.detail", equalTo("Request body is missing or invalid")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
                 .andExpect(content().string(not(containsString("secret-marker"))));
     }
 
@@ -69,6 +71,7 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(jsonPath("$.title", equalTo("Malformed request")))
                 .andExpect(jsonPath("$.status", equalTo(400)))
                 .andExpect(jsonPath("$.detail", equalTo("Request body is missing or invalid")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
                 .andExpect(content().string(not(containsString("UNEXPECTED_SECRET_TOKEN"))))
                 .andExpect(content().string(not(containsString("Unrecognized token"))))
                 .andExpect(content().string(not(containsString("Unexpected character"))))
@@ -83,6 +86,7 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.title", equalTo("Resource not found")))
                 .andExpect(jsonPath("$.status", equalTo(404)))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/missing")))
                 .andExpect(jsonPath("$.detail", equalTo("Document not found")));
     }
 
@@ -91,7 +95,9 @@ class GlobalExceptionHandlerHttpTest {
         mockMvc.perform(get("/probe/unavailable"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.title", equalTo("Service unavailable")))
-                .andExpect(jsonPath("$.status", equalTo(503)));
+                .andExpect(jsonPath("$.status", equalTo(503)))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/unavailable")))
+                .andExpect(content().string(not(containsString("AI service is unavailable"))));
     }
 
     @Test
@@ -102,7 +108,9 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(jsonPath("$.title", equalTo("Service unavailable")))
                 .andExpect(jsonPath("$.status", equalTo(503)))
                 .andExpect(jsonPath("$.detail",
-                        equalTo("A required service is temporarily unavailable")));
+                        equalTo("A required service is temporarily unavailable")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/database-unavailable")))
+                .andExpect(content().string(not(containsString("database credentials must not be exposed"))));
     }
 
     @Test
@@ -110,7 +118,10 @@ class GlobalExceptionHandlerHttpTest {
         mockMvc.perform(get("/probe/unexpected"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.status", equalTo(500)))
-                .andExpect(jsonPath("$.detail", equalTo("An unexpected error occurred")));
+                .andExpect(jsonPath("$.detail", equalTo("An unexpected error occurred")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/unexpected")))
+                .andExpect(content().string(not(containsString("internal failure"))))
+                .andExpect(content().string(not(containsString("IllegalStateException"))));
     }
 
     @RestController
