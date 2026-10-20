@@ -15,7 +15,7 @@ import com.axlero.ragassistant.config.CorsConfig;
 import com.axlero.ragassistant.config.SecurityConfig;
 import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.entities.Role;
-import com.axlero.ragassistant.security.MethodAuthorizationTestConfig;
+import com.axlero.ragassistant.services.JwtService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.util.Base64;
@@ -40,7 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
     SecurityProblemHandler.class
 })
 @TestPropertySource(properties = {
-    "app.security.jwt.secret=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
+    "JWT_SECRET=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
     "app.security.jwt.expiration=PT15M"
 })
 class SecurityConfigHttpTest {
@@ -59,8 +59,20 @@ class SecurityConfigHttpTest {
         mockMvc.perform(get("/api/auth/probe")).andExpect(status().isOk());
         mockMvc.perform(get("/v3/api-docs/probe")).andExpect(status().isOk());
         mockMvc.perform(get("/swagger-ui/probe")).andExpect(status().isOk());
-        mockMvc.perform(get("/swagger-ui.html")).andExpect(status().isOk());
         mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
+    }
+
+    @Test
+    void protectsPathsOutsideTheExactPublicAllowlist() throws Exception {
+        mockMvc.perform(get("/swagger-ui.html"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.instance", equalTo("/swagger-ui.html")));
+        mockMvc.perform(get("/actuator/health/liveness"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.instance", equalTo("/actuator/health/liveness")));
+        mockMvc.perform(get("/api/private"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.instance", equalTo("/api/private")));
     }
 
     @Test
@@ -70,6 +82,8 @@ class SecurityConfigHttpTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Unauthorized")))
                 .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.detail",
+                        equalTo("Authentication is required or the bearer token is invalid")))
                 .andExpect(jsonPath("$.instance", equalTo("/api/private")));
     }
 
@@ -106,6 +120,7 @@ class SecurityConfigHttpTest {
         mockMvc.perform(get("/api/private").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.instance", equalTo("/api/private")))
                 .andExpect(content().string(not(containsString(token))));
     }
 
@@ -114,7 +129,8 @@ class SecurityConfigHttpTest {
         mockMvc.perform(get("/api/private").header("Authorization", "Bearer " + expiredToken()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status", equalTo(401)));
+                .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.instance", equalTo("/api/private")));
     }
 
     @Test
@@ -122,7 +138,8 @@ class SecurityConfigHttpTest {
         mockMvc.perform(get("/api/private").header("Authorization", "Bearer " + tokenWithoutExpiration()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status", equalTo(401)));
+                .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.instance", equalTo("/api/private")));
     }
 
     @Test
@@ -135,7 +152,8 @@ class SecurityConfigHttpTest {
         mockMvc.perform(get("/api/private").header("Authorization", "Bearer " + String.join(".", parts)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status", equalTo(401)));
+                .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.instance", equalTo("/api/private")));
     }
 
     @Test

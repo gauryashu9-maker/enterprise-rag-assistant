@@ -51,7 +51,7 @@ docker compose up -d            # starts Postgres + pgvector
 cd backend && mvn spring-boot:run
 ```
 
-The app requires `JWT_SECRET` to be Base64-encoded random data of at least 32 bytes and will not start without it. `/actuator/health` is public. Other API routes require a bearer JWT; the login endpoint will be added by the separate Security B task.
+The app requires `JWT_SECRET` to be Base64-encoded random data of at least 32 bytes and will not start without it. Only `/api/auth/**`, `/v3/api-docs/**`, `/swagger-ui/**`, and `/actuator/health` are public. All other requests require a bearer JWT; the login endpoint will be added by the separate Security B task.
 
 Smoke test the LLM connection: `GET http://localhost:8080/api/ai/ping`
 

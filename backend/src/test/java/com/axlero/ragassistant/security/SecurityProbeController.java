@@ -12,7 +12,6 @@ public class SecurityProbeController {
         "/api/auth/probe",
         "/v3/api-docs/probe",
         "/swagger-ui/probe",
-        "/swagger-ui.html",
         "/actuator/health"
     })
     public String publicEndpoint() {
