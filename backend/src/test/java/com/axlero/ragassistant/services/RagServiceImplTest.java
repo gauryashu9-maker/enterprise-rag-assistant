@@ -8,12 +8,14 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.axlero.ragassistant.dto.RagAnswer;
+import com.axlero.ragassistant.dto.RagStreamEvent;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.core.io.ClassPathResource;
+import reactor.core.publisher.Flux;
 
 class RagServiceImplTest {
 
@@ -34,10 +36,10 @@ class RagServiceImplTest {
     }
 
     @SuppressWarnings("null")
-	@Test
+    @Test
     void answersFromRetrievedChunksWithCitations() {
         @SuppressWarnings("null")
-		Document chunk = new Document("Employees get 24 days of leave.", Map.of("filename", "hr-policy.pdf", "page", 2));
+        Document chunk = new Document("Employees get 24 days of leave.", Map.of("filename", "hr-policy.pdf", "page", 2));
         when(retrieval.retrieve("leave?")).thenReturn(List.of(chunk));
         when(chatClient.prompt().user(anyString()).call().content()).thenReturn("24 days.");
 
@@ -48,11 +50,12 @@ class RagServiceImplTest {
         assertEquals("hr-policy.pdf", answer.citations().get(0).documentName());
         assertEquals(2, answer.citations().get(0).page());
     }
+
     @SuppressWarnings("null")
-	@Test
+    @Test
     void dropsCitationsWhenModelSaysItDoesNotKnow() {
         @SuppressWarnings("null")
-		Document chunk = new Document("Unrelated text.", Map.of("filename", "a.pdf", "page", 1));
+        Document chunk = new Document("Unrelated text.", Map.of("filename", "a.pdf", "page", 1));
         when(retrieval.retrieve("q")).thenReturn(List.of(chunk));
         when(chatClient.prompt().user(anyString()).call().content()).thenReturn(RagServiceImpl.NO_ANSWER);
 
@@ -63,10 +66,10 @@ class RagServiceImplTest {
     }
 
     @SuppressWarnings("null")
-	@Test
+    @Test
     void returnsFallbackWhenModelReturnsNull() {
         @SuppressWarnings("null")
-		Document chunk = new Document("Some text.", Map.of("filename", "a.pdf", "page", 1));
+        Document chunk = new Document("Some text.", Map.of("filename", "a.pdf", "page", 1));
         when(retrieval.retrieve("q")).thenReturn(List.of(chunk));
         when(chatClient.prompt().user(anyString()).call().content()).thenReturn(null);
 
@@ -74,5 +77,54 @@ class RagServiceImplTest {
 
         assertEquals(RagServiceImpl.NO_ANSWER, answer.answer());
         assertEquals(0, answer.citations().size());
+    }
+
+    @Test
+    void streamsTokensThenCitationsThenDone() {
+        Document chunk = new Document("Employees get 24 days of leave.", Map.of("filename", "hr-policy.pdf", "page", 2));
+        when(retrieval.retrieve("leave?")).thenReturn(List.of(chunk));
+        when(chatClient.prompt().user(anyString()).stream().content()).thenReturn(Flux.just("24", " days."));
+
+        List<RagStreamEvent> events = service.answerStream("leave?").collectList().block();
+
+        assertEquals(List.of("token", "token", "citations", "done"),
+                events.stream().map(RagStreamEvent::event).toList());
+        assertEquals(Map.of("text", " days."), events.get(1).data());
+    }
+
+    @Test
+    void streamsFallbackWithoutCallingTheModelWhenNothingIsRetrieved() {
+        when(retrieval.retrieve("unknown")).thenReturn(List.of());
+
+        List<RagStreamEvent> events = service.answerStream("unknown").collectList().block();
+
+        assertEquals(List.of("token", "citations", "done"),
+                events.stream().map(RagStreamEvent::event).toList());
+        assertEquals(Map.of("citations", List.of()), events.get(1).data());
+        verifyNoInteractions(chatClient);
+    }
+
+    @Test
+    void streamsEmptyCitationsWhenTheModelHasNoAnswer() {
+        Document chunk = new Document("Unrelated text.", Map.of("filename", "a.pdf", "page", 1));
+        when(retrieval.retrieve("q")).thenReturn(List.of(chunk));
+        when(chatClient.prompt().user(anyString()).stream().content())
+                .thenReturn(Flux.just(RagServiceImpl.NO_ANSWER));
+
+        List<RagStreamEvent> events = service.answerStream("q").collectList().block();
+
+        assertEquals(Map.of("citations", List.of()), events.get(1).data());
+    }
+
+    @Test
+    void streamsAnErrorEventWhenTheModelFails() {
+        Document chunk = new Document("Some text.", Map.of("filename", "a.pdf", "page", 1));
+        when(retrieval.retrieve("q")).thenReturn(List.of(chunk));
+        when(chatClient.prompt().user(anyString()).stream().content())
+                .thenReturn(Flux.error(new IllegalStateException("boom")));
+
+        List<RagStreamEvent> events = service.answerStream("q").collectList().block();
+
+        assertEquals(List.of("error"), events.stream().map(RagStreamEvent::event).toList());
     }
 }
