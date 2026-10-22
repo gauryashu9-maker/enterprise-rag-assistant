@@ -142,6 +142,29 @@ Show this as a normal message without sources, not as an error.
 
 Answers can take several seconds, so show a loading state. A streaming endpoint is planned and its contract is **TBD**.
 
+### POST /api/rag/stream
+
+Same question as `/api/rag/ask`, but the answer arrives as server-sent events while it is being generated.
+
+Status: **implemented**. Requires `Authorization: Bearer <token>`. Send `Accept: text/event-stream`.
+
+Request body: `{ "question": "..." }` (required, not blank), same as `/api/rag/ask`.
+
+Events, in this order:
+
+| `event` | `data` (JSON) | When |
+| --- | --- | --- |
+| `token` | `{ "text": " days" }` | Many times. Append `text` to the answer as it arrives and keep spaces as they are |
+| `citations` | `{ "citations": [ { "documentName": "hr-policy.pdf", "page": 1, "snippet": "..." } ] }` | Once, after the last token. Empty when there was no answer |
+| `done` | `{}` | Last event of a normal answer |
+| `error` | `{ "detail": "The answer could not be generated." }` | Instead of citations and done, if generation fails midway |
+
+Notes for the frontend:
+
+- Use `fetch` with a streaming reader, not `EventSource`: `EventSource` cannot send a POST body or an `Authorization` header.
+- When nothing relevant is found, the stream is one `token` event with the fallback sentence, an empty `citations` event, then `done`.
+- A missing or invalid token returns a normal 401 `ProblemDetail` before any event is sent.
+
 ## Authentication
 
 **Authentication endpoints are planned.** JWT authentication for protected endpoints is implemented; until login and registration exist, the frontend uses mock auth.
