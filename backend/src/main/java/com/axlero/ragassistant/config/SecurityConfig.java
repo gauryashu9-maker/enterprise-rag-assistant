@@ -1,5 +1,6 @@
 package com.axlero.ragassistant.config;
 
+import jakarta.servlet.DispatcherType;
 import com.axlero.ragassistant.security.JwtAuthenticationFilter;
 import com.axlero.ragassistant.security.SecurityProblemHandler;
 import org.springframework.context.annotation.Bean;
@@ -38,6 +39,7 @@ public class SecurityConfig {
                     .authenticationEntryPoint(securityProblemHandler)
                     .accessDeniedHandler(securityProblemHandler))
             .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                     .requestMatchers(
                             "/api/auth/**",
                             "/v3/api-docs/**",
