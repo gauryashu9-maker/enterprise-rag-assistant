@@ -46,12 +46,12 @@ Prereqs: JDK 21, Maven 3.9+, Docker Desktop, Node 20+.
 
 ```bash
 cp .env.example .env            # set OPENAI_API_KEY and JWT_SECRET in .env
-openssl rand -base64 32         # copy the output into JWT_SECRET
+openssl rand -base64 48         # copy the output into JWT_SECRET
 docker compose up -d            # starts Postgres + pgvector
 cd backend && mvn spring-boot:run
 ```
 
-The app requires `JWT_SECRET` to be Base64-encoded random data of at least 32 bytes and will not start without it. Only `/api/auth/**`, `/v3/api-docs/**`, `/swagger-ui/**`, and `/actuator/health` are public. All other requests require a bearer JWT; the login endpoint will be added by the separate Security B task.
+The app requires `JWT_SECRET` to contain a Base64-encoded cryptographically random secret of at least 32 bytes and will not start without it (generate one using `openssl rand -base64 48`). The application Base64-decodes this secret before using it as the signing key (HMAC-SHA256). Only `/api/auth/**`, `/v3/api-docs/**`, `/swagger-ui/**`, and `/actuator/health` are public. All other requests require a bearer JWT; the login endpoint will be added by the separate Security B task.
 
 Smoke test the LLM connection: `GET http://localhost:8080/api/ai/ping`
 
