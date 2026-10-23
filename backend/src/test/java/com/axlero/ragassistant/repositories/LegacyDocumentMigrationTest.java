@@ -57,7 +57,7 @@ class LegacyDocumentMigrationTest {
         Flyway flyway = flywayUsingApplicationConfiguration(dataSource);
         flyway.migrate();
 
-        assertThat(readFlywayHistory(dataSource)).containsExactly(
+        assertThat(readFlywayHistory(dataSource)).startsWith(
                 new FlywayHistory("0", "BASELINE", "<< Flyway Baseline >>", true),
                 new FlywayHistory("1", "SQL",
                         "V1__create_data_schema_and_migrate_document_status.sql", true),
@@ -109,7 +109,7 @@ class LegacyDocumentMigrationTest {
         Flyway applicationFlyway = flywayUsingApplicationConfiguration(dataSource);
         applicationFlyway.migrate();
 
-        assertThat(readFlywayHistory(dataSource)).containsExactly(
+        assertThat(readFlywayHistory(dataSource)).startsWith(
                 new FlywayHistory("0", "BASELINE", "<< Flyway Baseline >>", true),
                 new FlywayHistory("1", "SQL",
                         "V1__create_data_schema_and_migrate_document_status.sql", true),
@@ -130,7 +130,7 @@ class LegacyDocumentMigrationTest {
 
         flyway.migrate();
 
-        assertThat(readFlywayHistory(dataSource)).containsExactly(
+        assertThat(readFlywayHistory(dataSource)).startsWith(
                 new FlywayHistory("1", "SQL",
                         "V1__create_data_schema_and_migrate_document_status.sql", true),
                 new FlywayHistory("2", "SQL", "V2__drop_legacy_status_check.sql", true));

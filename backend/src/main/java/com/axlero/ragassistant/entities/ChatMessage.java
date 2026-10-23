@@ -40,9 +40,13 @@ public class ChatMessage {
     }
 
     public ChatMessage(ChatMessageRole role, String content) {
+        this(role, content, Instant.now());
+    }
+
+    public ChatMessage(ChatMessageRole role, String content, Instant createdAt) {
         this.role = role;
         this.content = content;
-        this.createdAt = Instant.now();
+        this.createdAt = createdAt;
     }
 
     public UUID getId() {

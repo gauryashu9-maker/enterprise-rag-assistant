@@ -1,7 +1,7 @@
 package com.axlero.ragassistant.dto;
 
-import com.axlero.ragassistant.entities.ChatMessage;
 import com.axlero.ragassistant.entities.ChatMessageRole;
+import com.axlero.ragassistant.entities.ChatMessage;
 import com.axlero.ragassistant.entities.ChatSession;
 import com.axlero.ragassistant.entities.DocumentRecord;
 import com.axlero.ragassistant.entities.DocumentStatus;
@@ -13,6 +13,7 @@ import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -142,5 +143,48 @@ class DataDtoMappingTest {
         assertThat(json.get("role").textValue()).isEqualTo("ASSISTANT");
         assertThat(json.get("content").textValue()).isEqualTo("The policy is documented.");
         assertThat(json.get("createdAt").textValue()).isEqualTo("2026-10-20T10:31:00Z");
+    }
+
+    @Test
+    void serializesConversationWithSessionAndOrderedMessages() throws IOException {
+        UUID sessionId = UUID.fromString("12345678-1234-5678-1234-567812345678");
+        UUID userId = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        Instant sessionCreatedAt = Instant.parse("2026-10-20T10:00:00Z");
+        ChatConversationResponse response = new ChatConversationResponse(
+                new ChatSessionResponse(sessionId, userId, sessionCreatedAt),
+                List.of(
+                        new ChatMessageResponse(
+                                UUID.fromString("11111111-2222-3333-4444-555555555555"),
+                                sessionId,
+                                ChatMessageRole.USER,
+                                "How many days off?",
+                                Instant.parse("2026-10-20T10:00:01Z")),
+                        new ChatMessageResponse(
+                                UUID.fromString("66666666-7777-8888-9999-aaaaaaaaaaaa"),
+                                sessionId,
+                                ChatMessageRole.ASSISTANT,
+                                "You get 24 days.",
+                                Instant.parse("2026-10-20T10:00:02Z"))));
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsBytes(response));
+
+        assertThat(json.get("session").get("id").textValue()).isEqualTo(sessionId.toString());
+        assertThat(json.get("session").get("userId").textValue()).isEqualTo(userId.toString());
+        assertThat(json.get("session").get("createdAt").textValue()).isEqualTo("2026-10-20T10:00:00Z");
+        assertThat(json.get("messages")).hasSize(2);
+        assertThat(json.get("messages").get(0).get("id").textValue())
+                .isEqualTo("11111111-2222-3333-4444-555555555555");
+        assertThat(json.get("messages").get(0).get("sessionId").textValue()).isEqualTo(sessionId.toString());
+        assertThat(json.get("messages").get(0).get("role").textValue()).isEqualTo("USER");
+        assertThat(json.get("messages").get(0).get("content").textValue()).isEqualTo("How many days off?");
+        assertThat(json.get("messages").get(0).get("createdAt").textValue())
+                .isEqualTo("2026-10-20T10:00:01Z");
+        assertThat(json.get("messages").get(1).get("id").textValue())
+                .isEqualTo("66666666-7777-8888-9999-aaaaaaaaaaaa");
+        assertThat(json.get("messages").get(1).get("sessionId").textValue()).isEqualTo(sessionId.toString());
+        assertThat(json.get("messages").get(1).get("role").textValue()).isEqualTo("ASSISTANT");
+        assertThat(json.get("messages").get(1).get("content").textValue()).isEqualTo("You get 24 days.");
+        assertThat(json.get("messages").get(1).get("createdAt").textValue())
+                .isEqualTo("2026-10-20T10:00:02Z");
     }
 }
