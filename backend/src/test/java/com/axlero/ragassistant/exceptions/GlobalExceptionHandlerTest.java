@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-
+import org.springframework.security.authentication.BadCredentialsException;
 import static org.mockito.Mockito.mock;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,5 +64,25 @@ class GlobalExceptionHandlerTest {
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         assertThat(problem.getDetail()).isEqualTo("An unexpected error occurred");
+    }
+
+        @Test
+    void mapsBadCredentialsToUnauthorizedProblem() {
+        ProblemDetail problem = handler.handleBadCredentials(
+                new BadCredentialsException("Invalid email or password"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(problem.getTitle()).isEqualTo("Unauthorized");
+        assertThat(problem.getDetail()).isEqualTo("Invalid email or password");
+        assertThat(problem.getInstance()).isNull();
+    }
+
+    @Test
+    void mapsDuplicateEmailToConflictProblem() {
+        ProblemDetail problem = handler.handleEmailAlreadyRegistered(new EmailAlreadyRegisteredException());
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getTitle()).isEqualTo("Email already registered");
+        assertThat(problem.getDetail()).isEqualTo("Email is already registered");
     }
 }
