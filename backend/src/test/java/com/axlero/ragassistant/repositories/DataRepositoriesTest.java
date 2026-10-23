@@ -25,6 +25,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -127,9 +128,10 @@ class DataRepositoriesTest {
         AuthenticatedUser owner = new AuthenticatedUser(ownerId, "owner@example.com", Role.USER);
         AuthenticatedUser otherUser = new AuthenticatedUser(otherOwnerId, "other@example.com", Role.USER);
         ChatSession ownedSession = new ChatSession(ownerId);
-        ownedSession.addMessage(new ChatMessage(ChatMessageRole.USER, "First question"));
-        ownedSession.addMessage(new ChatMessage(ChatMessageRole.ASSISTANT, "First answer"));
-        ownedSession.addMessage(new ChatMessage(ChatMessageRole.USER, "Second question"));
+        Instant baseTime = Instant.parse("2026-10-23T10:00:00Z");
+        ownedSession.addMessage(new ChatMessage(ChatMessageRole.USER, "First question", baseTime.plusSeconds(1)));
+        ownedSession.addMessage(new ChatMessage(ChatMessageRole.ASSISTANT, "First answer", baseTime.plusSeconds(2)));
+        ownedSession.addMessage(new ChatMessage(ChatMessageRole.USER, "Second question", baseTime.plusSeconds(3)));
         ChatSession savedSession = chatSessions.saveAndFlush(ownedSession);
         entityManager.clear();
 
@@ -149,6 +151,30 @@ class DataRepositoriesTest {
         assertThatThrownBy(() -> conversationQueryService.getConversation(UUID.randomUUID(), owner))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Conversation not found");
+    }
+
+    @Test
+    void maintainsDeterministicChronologicalMessageOrderingRegardlessOfInsertionOrder() {
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedUser owner = new AuthenticatedUser(ownerId, "owner@example.com", Role.USER);
+        ChatSession session = new ChatSession(ownerId);
+        Instant base = Instant.parse("2026-10-23T12:00:00Z");
+
+        session.addMessage(new ChatMessage(ChatMessageRole.USER, "Third message", base.plusSeconds(30)));
+        session.addMessage(new ChatMessage(ChatMessageRole.USER, "First message", base.plusSeconds(10)));
+        session.addMessage(new ChatMessage(ChatMessageRole.ASSISTANT, "Second message", base.plusSeconds(20)));
+
+        ChatSession savedSession = chatSessions.saveAndFlush(session);
+        entityManager.clear();
+
+        ChatConversationResponse response = conversationQueryService.getConversation(savedSession.getId(), owner);
+
+        assertThat(response.messages())
+                .extracting(message -> message.role().name() + ": " + message.content())
+                .containsExactly(
+                        "USER: First message",
+                        "ASSISTANT: Second message",
+                        "USER: Third message");
     }
 
     @Test
@@ -179,8 +205,9 @@ class DataRepositoriesTest {
     void entityGraphReducesConversationFetchFromTwoSqlStatementsToOne() {
         UUID ownerId = UUID.randomUUID();
         ChatSession session = new ChatSession(ownerId);
-        session.addMessage(new ChatMessage(ChatMessageRole.USER, "Question"));
-        session.addMessage(new ChatMessage(ChatMessageRole.ASSISTANT, "Answer"));
+        Instant baseTime = Instant.parse("2026-10-23T10:00:00Z");
+        session.addMessage(new ChatMessage(ChatMessageRole.USER, "Question", baseTime.plusSeconds(1)));
+        session.addMessage(new ChatMessage(ChatMessageRole.ASSISTANT, "Answer", baseTime.plusSeconds(2)));
         ChatSession savedSession = chatSessions.saveAndFlush(session);
         entityManager.clear();
 
