@@ -1,18 +1,25 @@
 package com.axlero.ragassistant.exceptions;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
-import org.springframework.core.MethodParameter;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import static org.mockito.Mockito.mock;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class GlobalExceptionHandlerTest {
 
@@ -42,6 +49,61 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getTitle()).isEqualTo("Resource not found");
         assertThat(problem.getDetail()).isEqualTo("Document not found");
         assertThat(problem.getInstance()).hasToString("/probe/missing");
+    }
+
+    @Test
+    void mapsNoResourceFoundTo404Problem() {
+        NoResourceFoundException exception = new NoResourceFoundException(
+                HttpMethod.GET, "/probe/static-resource");
+
+        ProblemDetail problem = handler.handleNoResourceFound(
+                exception, request("/probe/static-resource"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(problem.getTitle()).isEqualTo("Resource not found");
+        assertThat(problem.getDetail()).contains("No static resource");
+        assertThat(problem.getInstance()).hasToString("/probe/static-resource");
+    }
+
+    @Test
+    void mapsMethodNotSupportedTo405Problem() {
+        HttpRequestMethodNotSupportedException exception = new HttpRequestMethodNotSupportedException(
+                "POST", List.of("GET"));
+
+        ProblemDetail problem = handler.handleMethodNotSupported(
+                exception, request("/probe/get-only"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED.value());
+        assertThat(problem.getTitle()).isEqualTo("Method not allowed");
+        assertThat(problem.getDetail()).contains("Request method 'POST' is not supported");
+        assertThat(problem.getInstance()).hasToString("/probe/get-only");
+    }
+
+    @Test
+    void mapsMediaTypeNotSupportedTo415Problem() {
+        HttpMediaTypeNotSupportedException exception = new HttpMediaTypeNotSupportedException(
+                MediaType.TEXT_PLAIN, List.of(MediaType.APPLICATION_JSON));
+
+        ProblemDetail problem = handler.handleMediaTypeNotSupported(
+                exception, request("/probe/json-only"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE.value());
+        assertThat(problem.getTitle()).isEqualTo("Unsupported media type");
+        assertThat(problem.getDetail()).contains("Content-Type 'text/plain' is not supported");
+        assertThat(problem.getInstance()).hasToString("/probe/json-only");
+    }
+
+    @Test
+    void mapsMediaTypeNotAcceptableTo406Problem() {
+        HttpMediaTypeNotAcceptableException exception = new HttpMediaTypeNotAcceptableException(
+                List.of(MediaType.APPLICATION_JSON));
+
+        ProblemDetail problem = handler.handleMediaTypeNotAcceptable(
+                exception, request("/probe/acceptable"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_ACCEPTABLE.value());
+        assertThat(problem.getTitle()).isEqualTo("Not acceptable");
+        assertThat(problem.getInstance()).hasToString("/probe/acceptable");
     }
 
     @Test

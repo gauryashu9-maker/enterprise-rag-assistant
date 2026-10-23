@@ -1,18 +1,26 @@
 package com.axlero.ragassistant.exceptions;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -84,6 +92,7 @@ class GlobalExceptionHandlerHttpTest {
     void returnsNotFoundProblemForMissingResource() throws Exception {
         mockMvc.perform(get("/probe/missing"))
                 .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Resource not found")))
                 .andExpect(jsonPath("$.status", equalTo(404)))
                 .andExpect(jsonPath("$.instance", equalTo("/probe/missing")))
@@ -91,9 +100,56 @@ class GlobalExceptionHandlerHttpTest {
     }
 
     @Test
+    void returnsNotFoundProblemForNoResourceFoundException() throws Exception {
+        mockMvc.perform(get("/probe/resource-not-found"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Resource not found")))
+                .andExpect(jsonPath("$.status", equalTo(404)))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/resource-not-found")))
+                .andExpect(jsonPath("$.detail", containsString("No static resource")));
+    }
+
+    @Test
+    void returnsMethodNotAllowedProblemForUnsupportedMethod() throws Exception {
+        mockMvc.perform(get("/probe/validation"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Method not allowed")))
+                .andExpect(jsonPath("$.status", equalTo(405)))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
+                .andExpect(jsonPath("$.detail", containsString("Request method 'GET' is not supported")));
+    }
+
+    @Test
+    void returnsUnsupportedMediaTypeProblemForUnsupportedContentType() throws Exception {
+        mockMvc.perform(post("/probe/validation")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("name=test"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Unsupported media type")))
+                .andExpect(jsonPath("$.status", equalTo(415)))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
+                .andExpect(jsonPath("$.detail", containsString("Content-Type 'text/plain' is not supported")));
+    }
+
+    @Test
+    void returnsNotAcceptableProblemForUnacceptableMediaType() throws Exception {
+        mockMvc.perform(get("/probe/acceptable")
+                        .accept(MediaType.TEXT_HTML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Not acceptable")))
+                .andExpect(jsonPath("$.status", equalTo(406)))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/acceptable")));
+    }
+
+    @Test
     void returnsServiceUnavailableProblemForUnavailableService() throws Exception {
         mockMvc.perform(get("/probe/unavailable"))
                 .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Service unavailable")))
                 .andExpect(jsonPath("$.status", equalTo(503)))
                 .andExpect(jsonPath("$.instance", equalTo("/probe/unavailable")))
@@ -115,21 +171,49 @@ class GlobalExceptionHandlerHttpTest {
 
     @Test
     void returnsInternalServerErrorProblemForUnexpectedFailure() throws Exception {
-        mockMvc.perform(get("/probe/unexpected"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.status", equalTo(500)))
-                .andExpect(jsonPath("$.detail", equalTo("An unexpected error occurred")))
-                .andExpect(jsonPath("$.instance", equalTo("/probe/unexpected")))
-                .andExpect(content().string(not(containsString("internal failure"))))
-                .andExpect(content().string(not(containsString("IllegalStateException"))));
+        Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+        ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
+        listAppender.start();
+        logger.addAppender(listAppender);
+
+        try {
+            mockMvc.perform(get("/probe/unexpected"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.status", equalTo(500)))
+                    .andExpect(jsonPath("$.detail", equalTo("An unexpected error occurred")))
+                    .andExpect(jsonPath("$.instance", equalTo("/probe/unexpected")))
+                    .andExpect(content().string(not(containsString("internal failure"))))
+                    .andExpect(content().string(not(containsString("IllegalStateException"))));
+
+            assertThat(listAppender.list).isNotEmpty();
+            ILoggingEvent loggingEvent = listAppender.list.get(0);
+            assertThat(loggingEvent.getLevel()).isEqualTo(Level.ERROR);
+            assertThat(loggingEvent.getFormattedMessage()).contains("/probe/unexpected");
+            assertThat(loggingEvent.getThrowableProxy()).isNotNull();
+            assertThat(loggingEvent.getThrowableProxy().getClassName()).isEqualTo(IllegalStateException.class.getName());
+            assertThat(loggingEvent.getThrowableProxy().getMessage()).isEqualTo("internal failure");
+        } finally {
+            logger.detachAppender(listAppender);
+        }
     }
 
     @RestController
     @RequestMapping("/probe")
     static class ErrorProbeController {
 
-        @PostMapping("/validation")
+        @PostMapping(value = "/validation", consumes = MediaType.APPLICATION_JSON_VALUE)
         void validate(@Valid @RequestBody ValidRequest request) {
+        }
+
+        @GetMapping(value = "/acceptable", produces = MediaType.APPLICATION_JSON_VALUE)
+        ValidRequest acceptable() {
+            return new ValidRequest("ok");
+        }
+
+        @GetMapping("/resource-not-found")
+        void resourceNotFound() throws NoResourceFoundException {
+            throw new NoResourceFoundException(HttpMethod.GET, "/probe/resource-not-found");
         }
 
         @GetMapping("/missing")
