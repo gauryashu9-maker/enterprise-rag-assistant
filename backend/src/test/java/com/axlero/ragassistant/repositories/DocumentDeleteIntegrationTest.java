@@ -6,6 +6,7 @@ import com.axlero.ragassistant.entities.DocumentStatus;
 import com.axlero.ragassistant.entities.Role;
 import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import com.axlero.ragassistant.exceptions.ServiceUnavailableException;
+import com.axlero.ragassistant.services.ChunkMetadata;
 import com.axlero.ragassistant.services.DocumentDeletionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -166,7 +167,7 @@ class DocumentDeleteIntegrationTest {
     }
 
     private void insertChunk(UUID chunkId, String content, UUID documentId, int page) {
-        String metadataJson = String.format("{\"documentId\": \"%s\", \"page\": %d}", documentId, page);
+        String metadataJson = String.format("{\"%s\": \"%s\", \"page\": %d}", ChunkMetadata.DOCUMENT_ID, documentId, page);
         jdbcTemplate.update(
                 "INSERT INTO vector_store (id, content, metadata) VALUES (?, ?, ?::json)",
                 chunkId, content, metadataJson);
@@ -174,7 +175,7 @@ class DocumentDeleteIntegrationTest {
 
     private int countChunksForDocument(UUID documentId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM vector_store WHERE metadata->>'documentId' = ?",
+                "SELECT count(*) FROM vector_store WHERE metadata->>'" + ChunkMetadata.DOCUMENT_ID + "' = ?",
                 Integer.class,
                 documentId.toString());
         return count != null ? count : 0;

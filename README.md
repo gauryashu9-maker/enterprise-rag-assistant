@@ -45,10 +45,13 @@ scripts/    Repo/team bootstrap
 Prereqs: JDK 21, Maven 3.9+, Docker Desktop, Node 20+.
 
 ```bash
-cp .env.example .env            # then put your OPENAI_API_KEY in .env
+cp .env.example .env            # set OPENAI_API_KEY and JWT_SECRET in .env
+openssl rand -base64 48         # copy the output into JWT_SECRET
 docker compose up -d            # starts Postgres + pgvector
 cd backend && mvn spring-boot:run
 ```
+
+The app requires `JWT_SECRET` to contain a Base64-encoded cryptographically random secret of at least 32 bytes and will not start without it (generate one using `openssl rand -base64 48`). The application Base64-decodes this secret before using it as the signing key (HMAC-SHA256). Only `/api/auth/**`, `/v3/api-docs/**`, `/swagger-ui/**`, and `/actuator/health` are public. All other requests require a bearer JWT; the login endpoint will be added by the separate Security B task.
 
 Smoke test the LLM connection: `GET http://localhost:8080/api/ai/ping`
 
@@ -74,3 +77,15 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md). Short version: **every member commits e
 ## Layered architecture
 
 Controllers take/return DTO Records and contain no business logic. Services hold business rules and `@Transactional` boundaries. Repositories talk to the database. Entities never leave the service layer. Errors go through one `@RestControllerAdvice` returning RFC 7807 `ProblemDetail`.
+
+## Local Environment Verification & Credentials
+
+### Default Credentials
+- **Admin**: `admin@example.com` / `password`
+- **User**: `user@example.com` / `password`
+
+### Prerequisites & Verification Notes
+- **Docker**: PostgreSQL with `pgvector` extension running on port 5432.
+- **Backend**: Spring Boot 3 running on port 8080 (Java 21).
+- **Frontend**: Vite + React running on port 5173 (Node.js 20+ required).
+- **PowerShell Note**: If script execution is restricted on Windows, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.

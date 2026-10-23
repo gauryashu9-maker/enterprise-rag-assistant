@@ -49,7 +49,7 @@ public class DocumentDeletionService {
         // 2. Delete vector chunks first using VectorStore delete-by-filter on documentId
         try {
             Filter.Expression filter = new FilterExpressionBuilder()
-                    .eq("documentId", documentId.toString())
+                    .eq(ChunkMetadata.DOCUMENT_ID, documentId.toString())
                     .build();
             vectorStore.delete(filter);
         } catch (Exception exception) {
