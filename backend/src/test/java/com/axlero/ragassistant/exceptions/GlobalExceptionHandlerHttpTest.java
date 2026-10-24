@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -95,47 +96,47 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Resource not found")))
                 .andExpect(jsonPath("$.status", equalTo(404)))
-                .andExpect(jsonPath("$.instance", equalTo("/probe/missing")))
-                .andExpect(jsonPath("$.detail", equalTo("Document not found")));
+                .andExpect(jsonPath("$.detail", equalTo("Document not found")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/missing")));
     }
 
     @Test
-    void returnsNotFoundProblemForNoResourceFoundException() throws Exception {
+    void returnsNotFoundProblemForStaticResource() throws Exception {
         mockMvc.perform(get("/probe/resource-not-found"))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Resource not found")))
                 .andExpect(jsonPath("$.status", equalTo(404)))
-                .andExpect(jsonPath("$.instance", equalTo("/probe/resource-not-found")))
-                .andExpect(jsonPath("$.detail", containsString("No static resource")));
+                .andExpect(jsonPath("$.detail", containsString("No static resource")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/resource-not-found")));
     }
 
     @Test
     void returnsMethodNotAllowedProblemForUnsupportedMethod() throws Exception {
-        mockMvc.perform(get("/probe/validation"))
+        mockMvc.perform(post("/probe/resource-not-found"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Method not allowed")))
                 .andExpect(jsonPath("$.status", equalTo(405)))
-                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
-                .andExpect(jsonPath("$.detail", containsString("Request method 'GET' is not supported")));
+                .andExpect(jsonPath("$.detail", containsString("Request method 'POST' is not supported")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/resource-not-found")));
     }
 
     @Test
-    void returnsUnsupportedMediaTypeProblemForUnsupportedContentType() throws Exception {
+    void returnsUnsupportedMediaTypeProblemForInvalidContentType() throws Exception {
         mockMvc.perform(post("/probe/validation")
                         .contentType(MediaType.TEXT_PLAIN)
-                        .content("name=test"))
+                        .content("hello"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.title", equalTo("Unsupported media type")))
                 .andExpect(jsonPath("$.status", equalTo(415)))
-                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
-                .andExpect(jsonPath("$.detail", containsString("Content-Type 'text/plain' is not supported")));
+                .andExpect(jsonPath("$.detail", containsString("Content-Type 'text/plain' is not supported")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/validation")));
     }
 
     @Test
-    void returnsNotAcceptableProblemForUnacceptableMediaType() throws Exception {
+    void returnsNotAcceptableProblemForUnacceptableAcceptHeader() throws Exception {
         mockMvc.perform(get("/probe/acceptable")
                         .accept(MediaType.TEXT_HTML))
                 .andExpect(status().isNotAcceptable())
@@ -167,6 +168,29 @@ class GlobalExceptionHandlerHttpTest {
                         equalTo("A required service is temporarily unavailable")))
                 .andExpect(jsonPath("$.instance", equalTo("/probe/database-unavailable")))
                 .andExpect(content().string(not(containsString("database credentials must not be exposed"))));
+    }
+
+    @Test
+    void returnsUnauthorizedProblemForBadCredentials() throws Exception {
+        mockMvc.perform(get("/probe/bad-credentials"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Unauthorized")))
+                .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.detail", equalTo("Invalid email or password")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/bad-credentials")))
+                .andExpect(content().string(not(containsString("secret credentials"))));
+    }
+
+    @Test
+    void returnsConflictProblemForDuplicateEmail() throws Exception {
+        mockMvc.perform(post("/probe/duplicate-email"))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Email already registered")))
+                .andExpect(jsonPath("$.status", equalTo(409)))
+                .andExpect(jsonPath("$.detail", equalTo("Email is already registered")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/duplicate-email")));
     }
 
     @Test
@@ -229,6 +253,16 @@ class GlobalExceptionHandlerHttpTest {
         @GetMapping("/database-unavailable")
         void databaseUnavailable() {
             throw new DataAccessResourceFailureException("database credentials must not be exposed");
+        }
+
+        @GetMapping("/bad-credentials")
+        void badCredentials() {
+            throw new BadCredentialsException("secret credentials must not be exposed");
+        }
+
+        @PostMapping("/duplicate-email")
+        void duplicateEmail() {
+            throw new EmailAlreadyRegisteredException();
         }
 
         @GetMapping("/unexpected")

@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
@@ -135,6 +136,30 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         assertThat(problem.getDetail()).isEqualTo("An unexpected error occurred");
         assertThat(problem.getInstance()).hasToString("/probe/unexpected");
+    }
+
+    @Test
+    void mapsBadCredentialsToUnauthorizedProblem() {
+        ProblemDetail problem = handler.handleBadCredentials(
+                new BadCredentialsException("Invalid email or password"),
+                request("/api/auth/login"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(problem.getTitle()).isEqualTo("Unauthorized");
+        assertThat(problem.getDetail()).isEqualTo("Invalid email or password");
+        assertThat(problem.getInstance()).hasToString("/api/auth/login");
+    }
+
+    @Test
+    void mapsDuplicateEmailToConflictProblem() {
+        ProblemDetail problem = handler.handleEmailAlreadyRegistered(
+                new EmailAlreadyRegisteredException(),
+                request("/api/auth/register"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getTitle()).isEqualTo("Email already registered");
+        assertThat(problem.getDetail()).isEqualTo("Email is already registered");
+        assertThat(problem.getInstance()).hasToString("/api/auth/register");
     }
 
     private MockHttpServletRequest request(String requestUri) {
