@@ -1,7 +1,7 @@
 package com.axlero.ragassistant.dto;
 
 import com.axlero.ragassistant.entities.ChatSession;
-
+import java.util.Comparator;
 import java.util.List;
 
 public record ChatConversationResponse(
@@ -16,6 +16,10 @@ public record ChatConversationResponse(
         return new ChatConversationResponse(
                 ChatSessionResponse.fromEntity(session),
                 session.getMessages().stream()
+                        .sorted(Comparator
+                                .comparing(ChatMessageResponse::fromEntity,
+                                        Comparator.comparing(
+                                                ChatMessageResponse::createdAt)))
                         .map(ChatMessageResponse::fromEntity)
                         .toList());
     }
