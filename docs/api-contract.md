@@ -54,10 +54,47 @@ The chat session and conversation endpoints are implemented and security-enforce
 | `POST /api/chat/sessions` | Implemented | Create a new chat session for the authenticated user. Returns a `Location` header pointing to the created session resource. | `201 Created`, one `ChatSessionResponse`. |
 | `GET /api/chat/sessions` | Implemented | List all chat sessions belonging to the authenticated user, newest first (`createdAt` descending). | `200 OK`, JSON array of `ChatSessionResponse` objects. |
 | `GET /api/chat/sessions/{id}` | Implemented | Retrieve the session and its chronological message history (`createdAt ASC, id ASC`). Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `ChatConversationResponse`. |
+| `POST /api/chat/sessions/{id}/messages` | Implemented | Send a user message within an owned chat session. Generates an AI answer via RAG and atomically persists both the USER question and ASSISTANT answer. Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `SendChatMessageResponse`. |
 
-All chat endpoints require a valid bearer JWT. A missing, invalid, or expired token returns `401 Unauthorized` with a `ProblemDetail`. A missing or cross-owner conversation returns a `404 ProblemDetail`.
+All chat endpoints require a valid bearer JWT. A missing, invalid, or expired token returns `401 Unauthorized` with a `ProblemDetail`. A missing or cross-owner conversation returns a `404 ProblemDetail`. Blank or missing message payloads return a `400 Validation ProblemDetail`.
 
 ### Chat DTO JSON shapes
+
+`SendChatMessageRequest`:
+
+```json
+{
+  "message": "How many days of paid leave do I get?"
+}
+```
+
+`SendChatMessageResponse`:
+
+```json
+{
+  "userMessage": {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "sessionId": "22222222-2222-4222-8222-222222222222",
+    "role": "USER",
+    "content": "How many days of paid leave do I get?",
+    "createdAt": "2026-10-24T10:00:00Z"
+  },
+  "assistantMessage": {
+    "id": "66666666-7777-8888-9999-aaaaaaaaaaaa",
+    "sessionId": "22222222-2222-4222-8222-222222222222",
+    "role": "ASSISTANT",
+    "content": "Employees get 24 days of paid annual leave.",
+    "createdAt": "2026-10-24T10:00:01Z"
+  },
+  "citations": [
+    {
+      "documentName": "hr-policy.pdf",
+      "page": 1,
+      "snippet": "Employees get 24 days of paid annual leave per calendar year."
+    }
+  ]
+}
+```
 
 `ChatSessionResponse`:
 

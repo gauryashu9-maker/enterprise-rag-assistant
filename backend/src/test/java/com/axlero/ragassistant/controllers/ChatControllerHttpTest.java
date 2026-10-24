@@ -6,6 +6,8 @@ import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.dto.ChatConversationResponse;
 import com.axlero.ragassistant.dto.ChatMessageResponse;
 import com.axlero.ragassistant.dto.ChatSessionResponse;
+import com.axlero.ragassistant.dto.Citation;
+import com.axlero.ragassistant.dto.SendChatMessageResponse;
 import com.axlero.ragassistant.entities.ChatMessageRole;
 import com.axlero.ragassistant.entities.Role;
 import com.axlero.ragassistant.exceptions.GlobalExceptionHandler;
@@ -13,6 +15,7 @@ import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import com.axlero.ragassistant.security.JwtAuthenticationFilter;
 import com.axlero.ragassistant.security.SecurityProblemHandler;
 import com.axlero.ragassistant.services.ChatConversationQueryService;
+import com.axlero.ragassistant.services.ChatMessageService;
 import com.axlero.ragassistant.services.ChatSessionService;
 import com.axlero.ragassistant.services.JwtService;
 import org.junit.jupiter.api.Test;
@@ -84,6 +87,9 @@ class ChatControllerHttpTest {
 
     @MockitoBean
     private ChatConversationQueryService chatConversationQueryService;
+
+    @MockitoBean
+    private ChatMessageService chatMessageService;
 
     // ──────────────────────────────────────────────────────────────────────────
     // 1. POST /api/chat/sessions
@@ -264,6 +270,160 @@ class ChatControllerHttpTest {
                 .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId)));
 
         verify(chatConversationQueryService, never()).getConversation(any(), any());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 4. POST /api/chat/sessions/{id}/messages
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void sendMessageReturns200WithMessagesAndCitations() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+        String question = "What is the policy?";
+        String answer = "The policy allows 24 days off.";
+
+        ChatMessageResponse userMsg = new ChatMessageResponse(
+                UUID.randomUUID(), sessionId, ChatMessageRole.USER, question, Instant.parse("2026-10-24T10:00:00Z"));
+        ChatMessageResponse assistantMsg = new ChatMessageResponse(
+                UUID.randomUUID(), sessionId, ChatMessageRole.ASSISTANT, answer, Instant.parse("2026-10-24T10:00:01Z"));
+        List<Citation> citations = List.of(new Citation("policy.pdf", 1, "24 days off"));
+
+        when(chatMessageService.sendMessage(eq(sessionId), eq(question), userWithId(userId)))
+                .thenReturn(new SendChatMessageResponse(userMsg, assistantMsg, citations));
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + question + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.userMessage.content", equalTo(question)))
+                .andExpect(jsonPath("$.userMessage.role", equalTo("USER")))
+                .andExpect(jsonPath("$.assistantMessage.content", equalTo(answer)))
+                .andExpect(jsonPath("$.assistantMessage.role", equalTo("ASSISTANT")))
+                .andExpect(jsonPath("$.citations", hasSize(1)))
+                .andExpect(jsonPath("$.citations[0].documentName", equalTo("policy.pdf")));
+
+        verify(chatMessageService).sendMessage(eq(sessionId), eq(question), userWithId(userId));
+    }
+
+    @Test
+    void sendMessageWithNoTokenReturns401ProblemDetail() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", sessionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"Hello\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId + "/messages")));
+
+        verify(chatMessageService, never()).sendMessage(any(), any(), any());
+    }
+
+    @Test
+    void sendMessageWithBlankMessageReturns400ValidationProblemDetail() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.title", equalTo("Validation failed")))
+                .andExpect(jsonPath("$.errors.message", equalTo("must not be blank")));
+
+        verify(chatMessageService, never()).sendMessage(any(), any(), any());
+    }
+
+    @Test
+    void sendMessageWithMissingBodyReturns400MalformedProblemDetail() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.title", equalTo("Malformed request")));
+
+        verify(chatMessageService, never()).sendMessage(any(), any(), any());
+    }
+
+    @Test
+    void sendMessageForMissingOrCrossOwnerSessionReturns404ProblemDetail() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+        String question = "Can I work remotely?";
+
+        when(chatMessageService.sendMessage(eq(sessionId), eq(question), userWithId(userId)))
+                .thenThrow(new ResourceNotFoundException("Conversation not found"));
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + question + "\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Resource not found")))
+                .andExpect(jsonPath("$.status", equalTo(404)))
+                .andExpect(jsonPath("$.detail", equalTo("Conversation not found")))
+                .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId + "/messages")));
+    }
+
+    @Test
+    void sendMessageForAdminAcrossOwnersReturns404ProblemDetail() throws Exception {
+        UUID adminId = UUID.randomUUID();
+        UUID otherUserSessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(adminId, "admin@example.com", Role.ADMIN);
+        String question = "Admin trying cross-owner message";
+
+        when(chatMessageService.sendMessage(eq(otherUserSessionId), eq(question), adminWithId(adminId)))
+                .thenThrow(new ResourceNotFoundException("Conversation not found"));
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", otherUserSessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + question + "\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Resource not found")))
+                .andExpect(jsonPath("$.status", equalTo(404)))
+                .andExpect(jsonPath("$.detail", equalTo("Conversation not found")))
+                .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + otherUserSessionId + "/messages")));
+    }
+
+    @Test
+    void sendMessageWhenRagFailsReturns500ProblemDetail() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+        String question = "Prompt causing RAG error";
+
+        when(chatMessageService.sendMessage(eq(sessionId), eq(question), userWithId(userId)))
+                .thenThrow(new IllegalStateException("RAG LLM service failure"));
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + question + "\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Internal server error")))
+                .andExpect(jsonPath("$.status", equalTo(500)))
+                .andExpect(jsonPath("$.detail", equalTo("An unexpected error occurred")))
+                .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId + "/messages")));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
