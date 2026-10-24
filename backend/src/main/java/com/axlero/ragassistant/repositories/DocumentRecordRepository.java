@@ -1,3 +1,4 @@
+
 package com.axlero.ragassistant.repositories;
 
 import com.axlero.ragassistant.entities.DocumentRecord;
@@ -12,4 +13,6 @@ public interface DocumentRecordRepository extends JpaRepository<DocumentRecord, 
     List<DocumentRecord> findAllByUploadedByOrderByUploadedAtDesc(UUID uploadedBy);
 
     Optional<DocumentRecord> findByIdAndUploadedBy(UUID id, UUID uploadedBy);
+
+    List<DocumentRecord> findAllByOrderByUploadedAtDesc();
 }
