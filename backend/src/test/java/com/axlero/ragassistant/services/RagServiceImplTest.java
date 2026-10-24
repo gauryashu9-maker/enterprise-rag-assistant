@@ -127,4 +127,46 @@ class RagServiceImplTest {
 
         assertEquals(List.of("error"), events.stream().map(RagStreamEvent::event).toList());
     }
+
+    @Test
+    void structuredReplyCitesOnlyTheChunksTheModelUsed() {
+        Document first = new Document("Employees get 24 days of leave.", Map.of("filename", "hr-policy.pdf", "page", 1));
+        Document second = new Document("Remote work is allowed 3 days a week.", Map.of("filename", "hr-policy.pdf", "page", 2));
+        when(retrieval.retrieve("remote?")).thenReturn(List.of(first, second));
+        when(chatClient.prompt().user(anyString()).call().content())
+                .thenReturn("{\"answer\":\"3 days a week.\",\"sources\":[2]}");
+
+        RagAnswer answer = service.answer("remote?");
+
+        assertEquals("3 days a week.", answer.answer());
+        assertEquals(1, answer.citations().size());
+        assertEquals(2, answer.citations().get(0).page());
+    }
+
+    @Test
+    void structuredReplyWithoutSourcesCitesAllRetrievedChunks() {
+        Document first = new Document("Employees get 24 days of leave.", Map.of("filename", "hr-policy.pdf", "page", 1));
+        Document second = new Document("Remote work is allowed 3 days a week.", Map.of("filename", "hr-policy.pdf", "page", 2));
+        when(retrieval.retrieve("q")).thenReturn(List.of(first, second));
+        when(chatClient.prompt().user(anyString()).call().content())
+                .thenReturn("{\"answer\":\"Some answer.\",\"sources\":[]}");
+
+        RagAnswer answer = service.answer("q");
+
+        assertEquals("Some answer.", answer.answer());
+        assertEquals(2, answer.citations().size());
+    }
+
+    @Test
+    void structuredNoAnswerReturnsEmptyCitations() {
+        Document chunk = new Document("Unrelated text.", Map.of("filename", "a.pdf", "page", 1));
+        when(retrieval.retrieve("q")).thenReturn(List.of(chunk));
+        when(chatClient.prompt().user(anyString()).call().content())
+                .thenReturn("{\"answer\":\"" + RagServiceImpl.NO_ANSWER + "\",\"sources\":[]}");
+
+        RagAnswer answer = service.answer("q");
+
+        assertEquals(RagServiceImpl.NO_ANSWER, answer.answer());
+        assertEquals(0, answer.citations().size());
+    }
 }
