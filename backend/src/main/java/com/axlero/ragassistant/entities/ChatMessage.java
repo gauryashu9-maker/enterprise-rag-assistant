@@ -1,3 +1,4 @@
+
 package com.axlero.ragassistant.entities;
 
 import jakarta.persistence.Column;
@@ -33,6 +34,9 @@ public class ChatMessage {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "sequence_number", nullable = false)
+    private int sequenceNumber;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     private ChatSession session;
 
@@ -61,8 +65,20 @@ public class ChatMessage {
         return createdAt;
     }
 
+    public int getSequenceNumber() {
+        return sequenceNumber;
+    }
+
     public ChatSession getSession() {
         return session;
+    }
+
+    void setSequenceNumber(int sequenceNumber) {
+        if (sequenceNumber < 0) {
+            throw new IllegalArgumentException(
+                    "Sequence number cannot be negative.");
+        }
+        this.sequenceNumber = sequenceNumber;
     }
 
     void setSession(ChatSession session) {
