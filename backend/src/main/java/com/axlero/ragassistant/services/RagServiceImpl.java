@@ -1,6 +1,7 @@
 package com.axlero.ragassistant.services;
 
 import com.axlero.ragassistant.dto.Citation;
+import com.axlero.ragassistant.dto.LlmAnswer;
 import com.axlero.ragassistant.dto.RagAnswer;
 import com.axlero.ragassistant.dto.RagStreamEvent;
 import java.util.List;
@@ -10,8 +11,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -26,6 +29,8 @@ public class RagServiceImpl implements RagService {
     private final RetrievalService retrievalService;
     private final ChatClient chatClient;
     private final PromptTemplate promptTemplate;
+    private final PromptTemplate structuredPromptTemplate;
+    private final BeanOutputConverter<LlmAnswer> answerConverter = new BeanOutputConverter<>(LlmAnswer.class);
 
     public RagServiceImpl(RetrievalService retrievalService,
                           ChatClient chatClient,
@@ -33,6 +38,9 @@ public class RagServiceImpl implements RagService {
         this.retrievalService = retrievalService;
         this.chatClient = chatClient;
         this.promptTemplate = PromptTemplate.builder().resource(promptResource).build();
+        this.structuredPromptTemplate = PromptTemplate.builder()
+                .resource(new ClassPathResource("prompts/rag-structured-prompt.st"))
+                .build();
     }
 
     @Override
@@ -43,13 +51,38 @@ public class RagServiceImpl implements RagService {
             return new RagAnswer(NO_ANSWER, List.of());
         }
 
-        String context = chunks.stream()
-                .map(Document::getText)
-                .collect(Collectors.joining("\n\n---\n\n"));
-        String prompt = promptTemplate.render(Map.of("context", context, "question", question));
+        String prompt = structuredPromptTemplate.render(Map.of(
+                "context", RagContext.numbered(chunks),
+                "question", question,
+                "format", answerConverter.getFormat()));
 
         String reply = chatClient.prompt().user(prompt).call().content();
-        if (reply == null || reply.isBlank() || reply.contains(NO_ANSWER)){
+        return toRagAnswer(reply, chunks);
+    }
+
+    private RagAnswer toRagAnswer(String reply, List<Document> chunks) {
+        if (reply == null || reply.isBlank()) {
+            return new RagAnswer(NO_ANSWER, List.of());
+        }
+
+        LlmAnswer parsed;
+        try {
+            parsed = answerConverter.convert(reply);
+        } catch (RuntimeException e) {
+            // Small models sometimes ignore the JSON format: fall back to the raw text.
+            log.warn("Model reply was not valid structured JSON; using the raw text as the answer");
+            return fromPlainText(reply, chunks);
+        }
+
+        if (parsed == null || parsed.answer() == null || parsed.answer().isBlank()
+                || parsed.answer().contains(NO_ANSWER)) {
+            return new RagAnswer(NO_ANSWER, List.of());
+        }
+        return new RagAnswer(parsed.answer(), toCitations(RagContext.selectCited(parsed.sources(), chunks)));
+    }
+
+    private RagAnswer fromPlainText(String reply, List<Document> chunks) {
+        if (reply.contains(NO_ANSWER)) {
             return new RagAnswer(NO_ANSWER, List.of());
         }
         return new RagAnswer(reply, toCitations(chunks));
