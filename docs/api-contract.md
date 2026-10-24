@@ -45,6 +45,32 @@ The list and get endpoints are implemented. They use the authenticated principal
 
 Not-found responses use a ProblemDetail. Document endpoints require Security PR #39's authenticated principal integration before they can be safely exposed.
 
+### Chat DTO JSON shapes
+
+These examples document the existing Java Record DTOs. They do not define or imply chat HTTP endpoints.
+
+`ChatSessionResponse`:
+
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "userId": "11111111-1111-4111-8111-111111111111",
+  "createdAt": "2026-10-20T10:30:00Z"
+}
+```
+
+`ChatMessageResponse`:
+
+```json
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "sessionId": "22222222-2222-4222-8222-222222222222",
+  "role": "ASSISTANT",
+  "content": "The policy is documented.",
+  "createdAt": "2026-10-20T10:31:00Z"
+}
+```
+
 ### Ingestion status
 
 The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. Status changes are owned by the backend ingestion service; the service integration is pending. The frontend can poll `GET /api/documents/{id}` to observe status changes. The current development seed chunks and retrieval pipeline do not carry documentId/ownerId metadata, and no vector deletion operation is available. Do not delete a document record until ingestion supports deleting its associated vectors.
@@ -242,7 +268,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Malformed request",
   "status": 400,
-  "detail": "Request body is missing or invalid"
+  "detail": "Request body is missing or invalid",
+  "instance": "/api/rag/ask"
 }
 ```
 
@@ -253,7 +280,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Resource not found",
   "status": 404,
-  "detail": "Document not found"
+  "detail": "Document not found",
+  "instance": "/api/documents/8ca57f15-4358-4bc6-a8af-614eab659cf4"
 }
 ```
 
@@ -264,7 +292,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Internal Server Error",
   "status": 500,
-  "detail": "An unexpected error occurred"
+  "detail": "An unexpected error occurred",
+  "instance": "/api/rag/ask"
 }
 ```
 
@@ -275,7 +304,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Service unavailable",
   "status": 503,
-  "detail": "A required service is temporarily unavailable"
+  "detail": "A required service is temporarily unavailable",
+  "instance": "/api/rag/ask"
 }
 ```
 
