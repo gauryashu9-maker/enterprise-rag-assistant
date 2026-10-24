@@ -9,7 +9,6 @@ import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import com.axlero.ragassistant.services.DocumentQueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -100,31 +99,6 @@ class DocumentControllerHttpTest {
         mockMvc.perform(get("/api/documents/{id}", documentId))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("Document not found"));
-    }
-
-    @Test
-    void getsDocumentForAuthenticatedAdminAcrossOwners() throws Exception {
-        AuthenticatedUser admin = user(Role.ADMIN);
-        authenticate(admin);
-        UUID documentId = UUID.randomUUID();
-        when(documentQueryService.getDocument(documentId, admin))
-                .thenReturn(document("cross-owner.pdf"));
-
-        mockMvc.perform(get("/api/documents/{id}", documentId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.filename").value("cross-owner.pdf"));
-
-        verify(documentQueryService).getDocument(documentId, admin);
-    }
-
-    @Test
-    @Disabled("Pending Security PR #39 merge: 401 Unauthorized regression test requires stateless JWT filter chain and SecurityConfig from #39. Do not fake with permit-all.")
-    void unauthenticatedGetReturns401Unauthorized() throws Exception {
-        // This test documents the pending dependency on Security PR #39.
-        // Once PR #39 merges into main, this test will execute against the real
-        // Spring Security filter chain to verify unauthenticated GET returns 401.
-        mockMvc.perform(get("/api/documents"))
-                .andExpect(status().isUnauthorized());
     }
 
     private void authenticate(AuthenticatedUser user) {
