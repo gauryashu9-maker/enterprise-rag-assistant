@@ -45,9 +45,19 @@ The document endpoints are implemented. They use the authenticated principal pop
 
 Not-found responses use a ProblemDetail. Document endpoints require Security PR #39's authenticated principal integration before they can be safely exposed.
 
-### Chat DTO JSON shapes
+### Chat Session and Conversation Endpoints
 
-These examples document the existing Java Record DTOs. They do not define or imply chat HTTP endpoints.
+The chat session and conversation endpoints are implemented and security-enforced by the stateless JWT filter chain. Every request requires `Authorization: Bearer <jwt>`. The authenticated caller's identity is extracted from the token. Strict owner isolation is enforced for all roles (including `ADMIN`): a user can only access their own sessions and conversations; accessing a missing session or another user's session returns `404 Not Found`.
+
+| Method and path | Status | Behavior | Success response |
+| --- | --- | --- | --- |
+| `POST /api/chat/sessions` | Implemented | Create a new chat session for the authenticated user. Returns a `Location` header pointing to the created session resource. | `201 Created`, one `ChatSessionResponse`. |
+| `GET /api/chat/sessions` | Implemented | List all chat sessions belonging to the authenticated user, newest first (`createdAt` descending). | `200 OK`, JSON array of `ChatSessionResponse` objects. |
+| `GET /api/chat/sessions/{id}` | Implemented | Retrieve the session and its chronological message history (`createdAt ASC, id ASC`). Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `ChatConversationResponse`. |
+
+All chat endpoints require a valid bearer JWT. A missing, invalid, or expired token returns `401 Unauthorized` with a `ProblemDetail`. A missing or cross-owner conversation returns a `404 ProblemDetail`.
+
+### Chat DTO JSON shapes
 
 `ChatSessionResponse`:
 
@@ -81,7 +91,7 @@ The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. S
 
 ## Chat conversation data
 
-The backend data layer provides `ChatConversationResponse` for an authenticated user's conversation. It contains the existing `ChatSessionResponse` under `session` and an ordered `messages` array of existing `ChatMessageResponse` values. The same owner-only rule applies to USER and ADMIN; a conversation owned by another account or a missing conversation is not found. No HTTP route is defined here.
+The backend provides `ChatConversationResponse` via `GET /api/chat/sessions/{id}` for an authenticated user's conversation. It contains `ChatSessionResponse` under `session` and an ordered `messages` array of `ChatMessageResponse` values. The same owner-only rule applies to USER and ADMIN; a conversation owned by another account or a missing conversation is not found (404 ProblemDetail).
 
 ```json
 {

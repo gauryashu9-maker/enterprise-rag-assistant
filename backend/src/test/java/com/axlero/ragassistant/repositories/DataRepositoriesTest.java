@@ -122,6 +122,30 @@ class DataRepositoriesTest {
     }
 
     @Test
+    void listsChatSessionsByUserIdInNewestFirstOrder() {
+        UUID ownerId = UUID.randomUUID();
+        UUID otherOwnerId = UUID.randomUUID();
+
+        ChatSession session1 = new ChatSession(ownerId);
+        ChatSession session2 = new ChatSession(ownerId);
+        ChatSession otherSession = new ChatSession(otherOwnerId);
+
+        chatSessions.saveAndFlush(session1);
+        chatSessions.saveAndFlush(otherSession);
+        chatSessions.saveAndFlush(session2);
+        entityManager.clear();
+
+        List<ChatSession> userSessions = chatSessions.findAllByUserIdOrderByCreatedAtDesc(ownerId);
+
+        assertThat(userSessions)
+                .extracting(ChatSession::getUserId)
+                .containsOnly(ownerId);
+        assertThat(userSessions)
+                .extracting(ChatSession::getCreatedAt)
+                .isSortedAccordingTo(Comparator.reverseOrder());
+    }
+
+    @Test
     void retrievesConversationWithOrderedMessagesAndEnforcesOwnerScope() {
         UUID ownerId = UUID.randomUUID();
         UUID otherOwnerId = UUID.randomUUID();
