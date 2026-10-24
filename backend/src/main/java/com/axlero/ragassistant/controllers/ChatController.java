@@ -3,13 +3,18 @@ package com.axlero.ragassistant.controllers;
 import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.dto.ChatConversationResponse;
 import com.axlero.ragassistant.dto.ChatSessionResponse;
+import com.axlero.ragassistant.dto.SendChatMessageRequest;
+import com.axlero.ragassistant.dto.SendChatMessageResponse;
 import com.axlero.ragassistant.services.ChatConversationQueryService;
+import com.axlero.ragassistant.services.ChatMessageService;
 import com.axlero.ragassistant.services.ChatSessionService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -24,12 +29,15 @@ public class ChatController {
 
     private final ChatSessionService chatSessionService;
     private final ChatConversationQueryService chatConversationQueryService;
+    private final ChatMessageService chatMessageService;
 
     public ChatController(
             ChatSessionService chatSessionService,
-            ChatConversationQueryService chatConversationQueryService) {
+            ChatConversationQueryService chatConversationQueryService,
+            ChatMessageService chatMessageService) {
         this.chatSessionService = chatSessionService;
         this.chatConversationQueryService = chatConversationQueryService;
+        this.chatMessageService = chatMessageService;
     }
 
     @PostMapping
@@ -55,5 +63,13 @@ public class ChatController {
             @PathVariable UUID id,
             @AuthenticationPrincipal AuthenticatedUser user) {
         return chatConversationQueryService.getConversation(id, user);
+    }
+
+    @PostMapping("/{id}/messages")
+    public SendChatMessageResponse sendMessage(
+            @PathVariable UUID id,
+            @Valid @RequestBody SendChatMessageRequest request,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return chatMessageService.sendMessage(id, request.message(), user);
     }
 }
