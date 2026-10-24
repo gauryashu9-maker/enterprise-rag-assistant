@@ -35,13 +35,13 @@ Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
 ### Document endpoints
 
-The list and get endpoints are implemented. They use the authenticated principal populated by the JWT filter; the frontend must not supply a user ID to select an owner. Authentication enforcement depends on Security PR #39 being merged.
+The document endpoints are implemented. They use the authenticated principal populated by the JWT filter; the frontend must not supply a user ID to select an owner. Authentication enforcement depends on Security PR #39 being merged.
 
 | Method and path | Status | Behavior | Success response |
 | --- | --- | --- | --- |
 | `GET /api/documents` | Implemented | Return documents, newest first: a USER gets their own documents; an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
 | `GET /api/documents/{id}` | Implemented | Retrieve the owner's document, or any document for ADMIN. A missing document or another user's document returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
-| `DELETE /api/documents/{id}` | Planned | Safe deletion is blocked until ingestion provides document-scoped vector deletion. | TBD |
+| `DELETE /api/documents/{id}` | Implemented | Delete a document and its vector chunks. Authorizes first: a USER can only delete owned documents (cross-owner returns 404); an ADMIN can delete any document. Deletes vector chunks by `documentId` filter first, then removes the database record. If vector deletion fails, returns 503 and preserves the database record. | `204 No Content`. |
 
 Not-found responses use a ProblemDetail. Document endpoints require Security PR #39's authenticated principal integration before they can be safely exposed.
 
