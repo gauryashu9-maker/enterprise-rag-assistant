@@ -7,7 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
+import org.springframework.security.authentication.BadCredentialsException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -46,6 +46,22 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.SERVICE_UNAVAILABLE, "A required service is temporarily unavailable");
         problem.setTitle("Service unavailable");
+        return problem;
+    }
+
+        @ExceptionHandler(BadCredentialsException.class)
+    ProblemDetail handleBadCredentials(BadCredentialsException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, exception.getMessage());
+        problem.setTitle("Unauthorized");
+        return problem;
+    }
+
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, exception.getMessage());
+        problem.setTitle("Email already registered");
         return problem;
     }
 
