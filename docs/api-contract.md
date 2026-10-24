@@ -33,21 +33,47 @@ The confirmed response DTO is `DocumentResponse`. UUIDs are serialized as string
 
 Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
-### Planned document endpoints
+### Document endpoints
 
-**These HTTP endpoints are PLANNED and are not implemented yet.** The backend currently has owner-scoped repository queries, but no document controller. The response examples above describe the DTO, not a live HTTP response.
+The document endpoints are implemented. They use the authenticated principal populated by the JWT filter; the frontend must not supply a user ID to select an owner. Authentication enforcement depends on Security PR #39 being merged.
 
-| Method and path | Planned behavior | Planned success response |
-| --- | --- | --- |
-| `GET /api/documents` | Return documents, newest first: a USER gets their own documents, an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
-| `GET /api/documents/{id}` | Retrieve a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
-| `DELETE /api/documents/{id}` | Delete a document: the owner, or any document for ADMIN. A document of another user returns 404 for a USER. | `204 No Content`. |
+| Method and path | Status | Behavior | Success response |
+| --- | --- | --- | --- |
+| `GET /api/documents` | Implemented | Return documents, newest first: a USER gets their own documents; an ADMIN gets all documents. | `200 OK`, JSON array of `DocumentResponse` objects. |
+| `GET /api/documents/{id}` | Implemented | Retrieve the owner's document, or any document for ADMIN. A missing document or another user's document returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
+| `DELETE /api/documents/{id}` | Implemented | Delete a document and its vector chunks. Authorizes first: a USER can only delete owned documents (cross-owner returns 404); an ADMIN can delete any document. Deletes vector chunks by `documentId` filter first, then removes the database record. If vector deletion fails, returns 503 and preserves the database record. | `204 No Content`. |
 
-Authentication is planned (see the Authentication section). Not-found behavior is decided: a missing document, or a document of another user (for a USER), returns 404 with a ProblemDetail.
+Not-found responses use a ProblemDetail. Document endpoints require Security PR #39's authenticated principal integration before they can be safely exposed.
+
+### Chat DTO JSON shapes
+
+These examples document the existing Java Record DTOs. They do not define or imply chat HTTP endpoints.
+
+`ChatSessionResponse`:
+
+```json
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "userId": "11111111-1111-4111-8111-111111111111",
+  "createdAt": "2026-10-20T10:30:00Z"
+}
+```
+
+`ChatMessageResponse`:
+
+```json
+{
+  "id": "33333333-3333-4333-8333-333333333333",
+  "sessionId": "22222222-2222-4222-8222-222222222222",
+  "role": "ASSISTANT",
+  "content": "The policy is documented.",
+  "createdAt": "2026-10-20T10:31:00Z"
+}
+```
 
 ### Ingestion status
 
-The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. Status changes are owned by the backend ingestion service; the service integration is pending. Once document endpoints are implemented, the frontend will poll `GET /api/documents/{id}` to observe status changes. Deletion of associated vector chunks is also pending. Planned design: every chunk carries documentId and ownerId metadata, and DELETE removes the document chunks first, then the record, in one transactional service method (retrying a failed delete is safe).
+The intended lifecycle is `UPLOADED` → `PROCESSING` → `READY` or `FAILED`. Status changes are owned by the backend ingestion service; the service integration is pending. The frontend can poll `GET /api/documents/{id}` to observe status changes. The current development seed chunks and retrieval pipeline do not carry documentId/ownerId metadata, and no vector deletion operation is available. Do not delete a document record until ingestion supports deleting its associated vectors.
 
 ## Upload
 
@@ -142,6 +168,29 @@ Show this as a normal message without sources, not as an error.
 
 Answers can take several seconds, so show a loading state. A streaming endpoint is planned and its contract is **TBD**.
 
+### POST /api/rag/stream
+
+Same question as `/api/rag/ask`, but the answer arrives as server-sent events while it is being generated.
+
+Status: **implemented**. Requires `Authorization: Bearer <token>`. Send `Accept: text/event-stream`.
+
+Request body: `{ "question": "..." }` (required, not blank), same as `/api/rag/ask`.
+
+Events, in this order:
+
+| `event` | `data` (JSON) | When |
+| --- | --- | --- |
+| `token` | `{ "text": " days" }` | Many times. Append `text` to the answer as it arrives and keep spaces as they are |
+| `citations` | `{ "citations": [ { "documentName": "hr-policy.pdf", "page": 1, "snippet": "..." } ] }` | Once, after the last token. Empty when there was no answer |
+| `done` | `{}` | Last event of a normal answer |
+| `error` | `{ "detail": "The answer could not be generated." }` | Instead of citations and done, if generation fails midway |
+
+Notes for the frontend:
+
+- Use `fetch` with a streaming reader, not `EventSource`: `EventSource` cannot send a POST body or an `Authorization` header.
+- When nothing relevant is found, the stream is one `token` event with the fallback sentence, an empty `citations` event, then `done`.
+- A missing or invalid token returns a normal 401 `ProblemDetail` before any event is sent.
+
 ## Authentication
 
 **Authentication endpoints are planned.** JWT authentication for protected endpoints is implemented; until login and registration exist, the frontend uses mock auth.
@@ -219,7 +268,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Malformed request",
   "status": 400,
-  "detail": "Request body is missing or invalid"
+  "detail": "Request body is missing or invalid",
+  "instance": "/api/rag/ask"
 }
 ```
 
@@ -230,7 +280,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Resource not found",
   "status": 404,
-  "detail": "Document not found"
+  "detail": "Document not found",
+  "instance": "/api/documents/8ca57f15-4358-4bc6-a8af-614eab659cf4"
 }
 ```
 
@@ -241,7 +292,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Internal Server Error",
   "status": 500,
-  "detail": "An unexpected error occurred"
+  "detail": "An unexpected error occurred",
+  "instance": "/api/rag/ask"
 }
 ```
 
@@ -252,7 +304,8 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
   "type": "about:blank",
   "title": "Service unavailable",
   "status": 503,
-  "detail": "A required service is temporarily unavailable"
+  "detail": "A required service is temporarily unavailable",
+  "instance": "/api/rag/ask"
 }
 ```
 

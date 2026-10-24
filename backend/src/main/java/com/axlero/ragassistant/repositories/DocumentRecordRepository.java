@@ -10,6 +10,8 @@ import java.util.UUID;
 
 public interface DocumentRecordRepository extends JpaRepository<DocumentRecord, UUID> {
 
+    List<DocumentRecord> findAllByOrderByUploadedAtDesc();
+
     List<DocumentRecord> findAllByUploadedByOrderByUploadedAtDesc(UUID uploadedBy);
 
     Optional<DocumentRecord> findByIdAndUploadedBy(UUID id, UUID uploadedBy);

@@ -1,7 +1,9 @@
 package com.axlero.ragassistant.services;
 
+import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.dto.DocumentResponse;
 import com.axlero.ragassistant.entities.DocumentRecord;
+import com.axlero.ragassistant.entities.Role;
 import com.axlero.ragassistant.entities.DocumentStatus;
 import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import com.axlero.ragassistant.repositories.DocumentRecordRepository;
@@ -43,6 +45,41 @@ class DocumentQueryServiceTest {
     }
 
     @Test
+    void listsOnlyAuthenticatedUsersDocuments() {
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser(ownerId, "user@example.com", Role.USER);
+        DocumentRecord document = new DocumentRecord(
+                "handbook.pdf", "application/pdf", 2048, DocumentStatus.READY, 3, ownerId);
+        when(repository.findAllByUploadedByOrderByUploadedAtDesc(ownerId))
+                .thenReturn(List.of(document));
+
+        List<DocumentResponse> result = service.listDocuments(user);
+
+        verify(repository).findAllByUploadedByOrderByUploadedAtDesc(ownerId);
+        assertEquals(List.of("handbook.pdf"), result.stream().map(DocumentResponse::filename).toList());
+    }
+
+    @Test
+    void adminsCanListAllDocumentsInRepositoryOrder() {
+        UUID adminId = UUID.randomUUID();
+        UUID firstOwnerId = UUID.randomUUID();
+        UUID secondOwnerId = UUID.randomUUID();
+        AuthenticatedUser admin = new AuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        DocumentRecord firstDocument = new DocumentRecord(
+                "newer.pdf", "application/pdf", 2048, DocumentStatus.READY, 3, firstOwnerId);
+        DocumentRecord secondDocument = new DocumentRecord(
+                "older.pdf", "application/pdf", 1024, DocumentStatus.UPLOADED, 1, secondOwnerId);
+        when(repository.findAllByOrderByUploadedAtDesc())
+                .thenReturn(List.of(firstDocument, secondDocument));
+
+        List<DocumentResponse> result = service.listDocuments(admin);
+
+        verify(repository).findAllByOrderByUploadedAtDesc();
+        assertEquals(List.of("newer.pdf", "older.pdf"),
+                result.stream().map(DocumentResponse::filename).toList());
+    }
+
+    @Test
     void returnsAnEmptyListWhenTheOwnerHasNoDocuments() {
         UUID ownerId = UUID.randomUUID();
         when(repository.findAllByUploadedByOrderByUploadedAtDesc(ownerId)).thenReturn(List.of());
@@ -65,6 +102,22 @@ class DocumentQueryServiceTest {
 
         verify(repository).findByIdAndUploadedBy(documentId, ownerId);
         assertEquals("handbook.pdf", result.filename());
+    }
+
+    @Test
+    void adminsCanGetDocumentsOwnedByOtherUsers() {
+        UUID documentId = UUID.randomUUID();
+        UUID adminId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        AuthenticatedUser admin = new AuthenticatedUser(adminId, "admin@example.com", Role.ADMIN);
+        DocumentRecord document = new DocumentRecord(
+                "private.pdf", "application/pdf", 512, DocumentStatus.UPLOADED, 0, ownerId);
+        when(repository.findById(documentId)).thenReturn(Optional.of(document));
+
+        DocumentResponse result = service.getDocument(documentId, admin);
+
+        verify(repository).findById(documentId);
+        assertEquals("private.pdf", result.filename());
     }
 
     @Test
@@ -99,7 +152,9 @@ class DocumentQueryServiceTest {
 
         ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,
-                () -> service.getDocument(documentId, requestedOwnerId));
+                () -> service.getDocument(
+                        documentId,
+                        new AuthenticatedUser(requestedOwnerId, "user@example.com", Role.USER)));
 
         assertEquals("Document not found", exception.getMessage());
         verify(repository).findByIdAndUploadedBy(documentId, requestedOwnerId);
