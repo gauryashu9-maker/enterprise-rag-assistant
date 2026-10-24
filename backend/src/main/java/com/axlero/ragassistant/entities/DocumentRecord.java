@@ -100,4 +100,10 @@ public class DocumentRecord {
         this.status = status;
         this.errorMessage = errorMessage;
     }
+    public void updateChunkCount(int chunkCount) {
+    if (chunkCount < 0) {
+        throw new IllegalArgumentException("Chunk count cannot be negative.");
+    }
+    this.chunkCount = chunkCount;
+}
 }
