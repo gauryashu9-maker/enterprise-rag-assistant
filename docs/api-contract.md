@@ -142,6 +142,7 @@ Request:
 
 - `citations` lists the retrieved chunks the answer was built from, best match first. The number varies (up to 5).
 - `page` can be `null`. `snippet` is at most about 200 characters and ends with `...` when cut. `documentName` is `unknown` when a chunk has no filename.
+- How citations are chosen: the model is asked for structured JSON (the answer plus the numbers of the context chunks it used). The citations are then built from our own chunk metadata for those numbers, so a source name or page can never be invented. If the model does not return valid JSON, its raw text is used as the answer and all retrieved chunks are cited.
 
 When no relevant chunk is found, or the model has no answer, the response is still 200 OK:
 
