@@ -35,7 +35,7 @@ Status values: `UPLOADED`, `PROCESSING`, `READY`, `FAILED`.
 
 ### Document endpoints
 
-The document endpoints are implemented. They use the authenticated principal populated by the JWT filter; the frontend must not supply a user ID to select an owner. Authentication enforcement depends on Security PR #39 being merged.
+The document endpoints are implemented and security-enforced by the stateless JWT filter chain. The frontend must send `Authorization: Bearer <jwt>` on every document request; the authenticated principal is extracted from the token — the frontend must not supply a user ID to select an owner.
 
 | Method and path | Status | Behavior | Success response |
 | --- | --- | --- | --- |
@@ -43,7 +43,7 @@ The document endpoints are implemented. They use the authenticated principal pop
 | `GET /api/documents/{id}` | Implemented | Retrieve the owner's document, or any document for ADMIN. A missing document or another user's document returns 404 for a USER. | `200 OK`, one `DocumentResponse`. |
 | `DELETE /api/documents/{id}` | Implemented | Delete a document and its vector chunks. Authorizes first: a USER can only delete owned documents (cross-owner returns 404); an ADMIN can delete any document. Deletes vector chunks by `documentId` filter first, then removes the database record. If vector deletion fails, returns 503 and preserves the database record. | `204 No Content`. |
 
-Not-found responses use a ProblemDetail. Document endpoints require Security PR #39's authenticated principal integration before they can be safely exposed.
+All document endpoints require a valid bearer JWT. A missing, invalid, expired, or tampered token returns `401 Unauthorized` with a `ProblemDetail` whose `instance` field contains the exact request path. A not-found response (including cross-owner access) uses a `404 ProblemDetail`. Security enforcement is verified by `DocumentSecurityIntegrationTest`.
 
 ### Chat DTO JSON shapes
 
