@@ -89,7 +89,7 @@ class DocumentSecurityIntegrationTest {
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("JWT_SECRET", () -> TEST_SECRET);
+        registry.add("app.security.jwt.secret", () -> TEST_SECRET);
     }
 
     @Autowired
