@@ -7,6 +7,7 @@ import com.axlero.ragassistant.entities.ChatSession;
 import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import com.axlero.ragassistant.repositories.ChatSessionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -31,7 +32,7 @@ public class ChatMessageStorageService {
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PersistedMessagePair appendMessagePair(
             UUID sessionId, UUID userId, String userQuestion, String assistantAnswer) {
         Objects.requireNonNull(sessionId, "Session ID must not be null");

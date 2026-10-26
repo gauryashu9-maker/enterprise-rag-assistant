@@ -38,6 +38,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -73,7 +74,7 @@ class ChatControllerHttpTest {
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("JWT_SECRET", () -> TEST_SECRET);
+        registry.add("app.security.jwt.secret", () -> TEST_SECRET);
     }
 
     @Autowired
@@ -424,6 +425,39 @@ class ChatControllerHttpTest {
                 .andExpect(jsonPath("$.status", equalTo(500)))
                 .andExpect(jsonPath("$.detail", equalTo("An unexpected error occurred")))
                 .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId + "/messages")));
+    }
+
+    @Test
+    void sendMessageWhenPersistenceFailsReturns200WithNullMessageIds() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+        String question = "What is the policy?";
+        String answer = "The policy states 30 days notice.";
+        Instant now = Instant.parse("2026-10-24T10:00:00Z");
+
+        ChatMessageResponse userMsg = new ChatMessageResponse(null, sessionId, ChatMessageRole.USER, question, now);
+        ChatMessageResponse assistantMsg = new ChatMessageResponse(null, sessionId, ChatMessageRole.ASSISTANT, answer, now.plusMillis(1));
+        List<Citation> citations = List.of(new Citation("handbook.pdf", 1, "30 days notice"));
+        SendChatMessageResponse response = new SendChatMessageResponse(userMsg, assistantMsg, citations);
+
+        when(chatMessageService.sendMessage(eq(sessionId), eq(question), userWithId(userId)))
+                .thenReturn(response);
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + question + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.userMessage.id", nullValue()))
+                .andExpect(jsonPath("$.userMessage.role", equalTo("USER")))
+                .andExpect(jsonPath("$.userMessage.content", equalTo(question)))
+                .andExpect(jsonPath("$.assistantMessage.id", nullValue()))
+                .andExpect(jsonPath("$.assistantMessage.role", equalTo("ASSISTANT")))
+                .andExpect(jsonPath("$.assistantMessage.content", equalTo(answer)))
+                .andExpect(jsonPath("$.citations", hasSize(1)))
+                .andExpect(jsonPath("$.citations[0].documentName", equalTo("handbook.pdf")));
     }
 
     // ──────────────────────────────────────────────────────────────────────────

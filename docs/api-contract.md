@@ -54,7 +54,7 @@ The chat session and conversation endpoints are implemented and security-enforce
 | `POST /api/chat/sessions` | Implemented | Create a new chat session for the authenticated user. Returns a `Location` header pointing to the created session resource. | `201 Created`, one `ChatSessionResponse`. |
 | `GET /api/chat/sessions` | Implemented | List all chat sessions belonging to the authenticated user, newest first (`createdAt` descending). | `200 OK`, JSON array of `ChatSessionResponse` objects. |
 | `GET /api/chat/sessions/{id}` | Implemented | Retrieve the session and its chronological message history (`createdAt ASC, id ASC`). Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `ChatConversationResponse`. |
-| `POST /api/chat/sessions/{id}/messages` | Implemented | Send a user message within an owned chat session. Generates an AI answer via RAG and atomically persists both the USER question and ASSISTANT answer. Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `SendChatMessageResponse`. |
+| `POST /api/chat/sessions/{id}/messages` | Implemented | Send a user message within an owned chat session. Generates an AI answer via RAG and persists both the USER question and ASSISTANT answer with resilient retry. If persistence fails after retries, the generated answer is still returned successfully. Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `SendChatMessageResponse`. |
 
 All chat endpoints require a valid bearer JWT. A missing, invalid, or expired token returns `401 Unauthorized` with a `ProblemDetail`. A missing or cross-owner conversation returns a `404 ProblemDetail`. Blank or missing message payloads return a `400 Validation ProblemDetail`.
 
@@ -95,6 +95,8 @@ All chat endpoints require a valid bearer JWT. A missing, invalid, or expired to
   ]
 }
 ```
+
+> **Best-Effort History Persistence**: RAG generation executes outside database transactions to avoid holding HikariCP connections during model inference. Persistence of user and assistant messages is attempted with up to 3 total attempts for transient database failures (`TransientDataAccessException`). If database persistence fails or retries are exhausted, the endpoint still returns `200 OK` with the generated answer and citations so users never lose a completed response. In that unpersisted scenario, `userMessage.id` and `assistantMessage.id` are returned as `null` to explicitly indicate that the messages were not persisted to database history.
 
 `ChatSessionResponse`:
 

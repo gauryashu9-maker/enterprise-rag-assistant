@@ -10,7 +10,11 @@ import com.axlero.ragassistant.entities.Role;
 import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -18,10 +22,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,13 +34,16 @@ class ChatMessageServiceTest {
 
     private ChatMessageStorageService chatMessageStorageService;
     private RagService ragService;
+    private ChatMessageService.Sleeper mockSleeper;
     private ChatMessageService chatMessageService;
 
     @BeforeEach
     void setUp() {
         chatMessageStorageService = mock(ChatMessageStorageService.class);
         ragService = mock(RagService.class);
-        chatMessageService = new ChatMessageService(chatMessageStorageService, ragService);
+        mockSleeper = mock(ChatMessageService.Sleeper.class);
+        chatMessageService = new ChatMessageService(
+                chatMessageStorageService, ragService, Duration.ZERO, mockSleeper);
     }
 
     @Test
@@ -67,6 +75,125 @@ class ChatMessageServiceTest {
         verify(chatMessageStorageService).validateOwnership(sessionId, userId);
         verify(ragService).answer(question);
         verify(chatMessageStorageService).appendMessagePair(sessionId, userId, question, answer);
+    }
+
+    @Test
+    void verifiesRagBeforeSaveOrdering() {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser(userId, "user@example.com", Role.USER);
+        UUID sessionId = UUID.randomUUID();
+        String question = "Order test question";
+        String answer = "Order test answer";
+        List<Citation> citations = List.of();
+
+        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+
+        ChatMessageResponse userMsgResponse = new ChatMessageResponse(
+                UUID.randomUUID(), sessionId, ChatMessageRole.USER, question, Instant.now());
+        ChatMessageResponse assistantMsgResponse = new ChatMessageResponse(
+                UUID.randomUUID(), sessionId, ChatMessageRole.ASSISTANT, answer, Instant.now().plusMillis(1));
+
+        when(chatMessageStorageService.appendMessagePair(sessionId, userId, question, answer))
+                .thenReturn(new ChatMessageStorageService.PersistedMessagePair(userMsgResponse, assistantMsgResponse));
+
+        chatMessageService.sendMessage(sessionId, question, user);
+
+        InOrder inOrder = inOrder(chatMessageStorageService, ragService);
+        inOrder.verify(chatMessageStorageService).validateOwnership(sessionId, userId);
+        inOrder.verify(ragService).answer(question);
+        inOrder.verify(chatMessageStorageService).appendMessagePair(sessionId, userId, question, answer);
+    }
+
+    @Test
+    void retriesTransientDataAccessExceptionAndSucceeds() throws InterruptedException {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser(userId, "user@example.com", Role.USER);
+        UUID sessionId = UUID.randomUUID();
+        String question = "Retry question";
+        String answer = "Retry answer";
+        List<Citation> citations = List.of(new Citation("doc.pdf", 2, "snippet"));
+
+        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+
+        ChatMessageResponse userMsgResponse = new ChatMessageResponse(
+                UUID.randomUUID(), sessionId, ChatMessageRole.USER, question, Instant.now());
+        ChatMessageResponse assistantMsgResponse = new ChatMessageResponse(
+                UUID.randomUUID(), sessionId, ChatMessageRole.ASSISTANT, answer, Instant.now().plusMillis(1));
+
+        when(chatMessageStorageService.appendMessagePair(sessionId, userId, question, answer))
+                .thenThrow(new CannotAcquireLockException("Lock wait timeout"))
+                .thenReturn(new ChatMessageStorageService.PersistedMessagePair(userMsgResponse, assistantMsgResponse));
+
+        SendChatMessageResponse response = chatMessageService.sendMessage(sessionId, question, user);
+
+        assertThat(response).isNotNull();
+        assertThat(response.userMessage().id()).isEqualTo(userMsgResponse.id());
+        assertThat(response.assistantMessage().id()).isEqualTo(assistantMsgResponse.id());
+        assertThat(response.citations()).isEqualTo(citations);
+
+        verify(chatMessageStorageService, times(2)).appendMessagePair(sessionId, userId, question, answer);
+        verify(mockSleeper, times(1)).sleep(Duration.ZERO);
+    }
+
+    @Test
+    void returnsGeneratedAnswerWithNullIdsWhenRetriesExhausted() throws InterruptedException {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser(userId, "user@example.com", Role.USER);
+        UUID sessionId = UUID.randomUUID();
+        String question = "Exhausted retries question";
+        String answer = "Exhausted retries answer";
+        List<Citation> citations = List.of(new Citation("doc.pdf", 1, "snippet"));
+
+        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+
+        when(chatMessageStorageService.appendMessagePair(sessionId, userId, question, answer))
+                .thenThrow(new CannotAcquireLockException("Lock wait timeout"));
+
+        SendChatMessageResponse response = chatMessageService.sendMessage(sessionId, question, user);
+
+        assertThat(response).isNotNull();
+        // Persistent IDs are null because persistence failed
+        assertThat(response.userMessage().id()).isNull();
+        assertThat(response.userMessage().sessionId()).isEqualTo(sessionId);
+        assertThat(response.userMessage().role()).isEqualTo(ChatMessageRole.USER);
+        assertThat(response.userMessage().content()).isEqualTo(question);
+
+        assertThat(response.assistantMessage().id()).isNull();
+        assertThat(response.assistantMessage().sessionId()).isEqualTo(sessionId);
+        assertThat(response.assistantMessage().role()).isEqualTo(ChatMessageRole.ASSISTANT);
+        assertThat(response.assistantMessage().content()).isEqualTo(answer);
+
+        assertThat(response.citations()).isEqualTo(citations);
+
+        verify(chatMessageStorageService, times(3)).appendMessagePair(sessionId, userId, question, answer);
+        verify(mockSleeper, times(2)).sleep(Duration.ZERO);
+    }
+
+    @Test
+    void returnsGeneratedAnswerWithNullIdsImmediatelyOnNonTransientFailure() throws InterruptedException {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser(userId, "user@example.com", Role.USER);
+        UUID sessionId = UUID.randomUUID();
+        String question = "Non transient question";
+        String answer = "Non transient answer";
+        List<Citation> citations = List.of(new Citation("doc.pdf", 1, "snippet"));
+
+        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+
+        when(chatMessageStorageService.appendMessagePair(sessionId, userId, question, answer))
+                .thenThrow(new DataIntegrityViolationException("Constraint violation"));
+
+        SendChatMessageResponse response = chatMessageService.sendMessage(sessionId, question, user);
+
+        assertThat(response).isNotNull();
+        assertThat(response.userMessage().id()).isNull();
+        assertThat(response.assistantMessage().id()).isNull();
+        assertThat(response.assistantMessage().content()).isEqualTo(answer);
+        assertThat(response.citations()).isEqualTo(citations);
+
+        // Non-transient failure must NOT be retried
+        verify(chatMessageStorageService, times(1)).appendMessagePair(sessionId, userId, question, answer);
+        verify(mockSleeper, never()).sleep(any());
     }
 
     @Test
