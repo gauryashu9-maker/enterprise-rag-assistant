@@ -10,6 +10,7 @@ import com.axlero.ragassistant.services.ChatMessageService;
 import com.axlero.ragassistant.services.ChatSessionService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,7 +35,7 @@ public class ChatController {
     public ChatController(
             ChatSessionService chatSessionService,
             ChatConversationQueryService chatConversationQueryService,
-            ChatMessageService chatMessageService) {
+            @Nullable ChatMessageService chatMessageService) {
         this.chatSessionService = chatSessionService;
         this.chatConversationQueryService = chatConversationQueryService;
         this.chatMessageService = chatMessageService;
@@ -70,6 +71,9 @@ public class ChatController {
             @PathVariable UUID id,
             @Valid @RequestBody SendChatMessageRequest request,
             @AuthenticationPrincipal AuthenticatedUser user) {
+        if (chatMessageService == null) {
+            throw new IllegalStateException("ChatMessageService is not available");
+        }
         return chatMessageService.sendMessage(id, request.message(), user);
     }
 }
