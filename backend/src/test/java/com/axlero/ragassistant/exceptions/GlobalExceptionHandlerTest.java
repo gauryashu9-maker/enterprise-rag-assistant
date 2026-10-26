@@ -141,7 +141,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void mapsBadCredentialsToUnauthorizedProblem() {
         ProblemDetail problem = handler.handleBadCredentials(
-                new BadCredentialsException("Invalid email or password"),
+                new BadCredentialsException("internal detail that must not leak"),
                 request("/api/auth/login"));
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
