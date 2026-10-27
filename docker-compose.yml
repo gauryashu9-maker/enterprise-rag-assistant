@@ -16,6 +16,49 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - rag-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-ragdb}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-rag}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rag}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gpt-4o-mini}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rag-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag-frontend
+    environment:
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - rag-network
 
 volumes:
   pgdata:
+
+networks:
+  rag-network:
+    driver: bridge
