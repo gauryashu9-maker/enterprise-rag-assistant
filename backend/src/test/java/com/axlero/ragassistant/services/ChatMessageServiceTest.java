@@ -55,7 +55,7 @@ class ChatMessageServiceTest {
         String answer = "You get 24 days.";
         List<Citation> citations = List.of(new Citation("handbook.pdf", 1, "24 days"));
 
-        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+        when(ragService.answer(question, userId)).thenReturn(new RagAnswer(answer, citations));
 
         ChatMessageResponse userMsgResponse = new ChatMessageResponse(
                 UUID.randomUUID(), sessionId, ChatMessageRole.USER, question, Instant.now());
@@ -73,7 +73,7 @@ class ChatMessageServiceTest {
         assertThat(response.citations()).isEqualTo(citations);
 
         verify(chatMessageStorageService).validateOwnership(sessionId, userId);
-        verify(ragService).answer(question);
+        verify(ragService).answer(question, userId);
         verify(chatMessageStorageService).appendMessagePair(sessionId, userId, question, answer);
     }
 
@@ -86,7 +86,7 @@ class ChatMessageServiceTest {
         String answer = "Order test answer";
         List<Citation> citations = List.of();
 
-        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+        when(ragService.answer(question, userId)).thenReturn(new RagAnswer(answer, citations));
 
         ChatMessageResponse userMsgResponse = new ChatMessageResponse(
                 UUID.randomUUID(), sessionId, ChatMessageRole.USER, question, Instant.now());
@@ -100,7 +100,7 @@ class ChatMessageServiceTest {
 
         InOrder inOrder = inOrder(chatMessageStorageService, ragService);
         inOrder.verify(chatMessageStorageService).validateOwnership(sessionId, userId);
-        inOrder.verify(ragService).answer(question);
+        inOrder.verify(ragService).answer(question, userId);
         inOrder.verify(chatMessageStorageService).appendMessagePair(sessionId, userId, question, answer);
     }
 
@@ -113,7 +113,7 @@ class ChatMessageServiceTest {
         String answer = "Retry answer";
         List<Citation> citations = List.of(new Citation("doc.pdf", 2, "snippet"));
 
-        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+        when(ragService.answer(question, userId)).thenReturn(new RagAnswer(answer, citations));
 
         ChatMessageResponse userMsgResponse = new ChatMessageResponse(
                 UUID.randomUUID(), sessionId, ChatMessageRole.USER, question, Instant.now());
@@ -144,7 +144,7 @@ class ChatMessageServiceTest {
         String answer = "Exhausted retries answer";
         List<Citation> citations = List.of(new Citation("doc.pdf", 1, "snippet"));
 
-        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+        when(ragService.answer(question, userId)).thenReturn(new RagAnswer(answer, citations));
 
         when(chatMessageStorageService.appendMessagePair(sessionId, userId, question, answer))
                 .thenThrow(new CannotAcquireLockException("Lock wait timeout"));
@@ -178,7 +178,7 @@ class ChatMessageServiceTest {
         String answer = "Non transient answer";
         List<Citation> citations = List.of(new Citation("doc.pdf", 1, "snippet"));
 
-        when(ragService.answer(question)).thenReturn(new RagAnswer(answer, citations));
+        when(ragService.answer(question, userId)).thenReturn(new RagAnswer(answer, citations));
 
         when(chatMessageStorageService.appendMessagePair(sessionId, userId, question, answer))
                 .thenThrow(new DataIntegrityViolationException("Constraint violation"));
@@ -209,7 +209,7 @@ class ChatMessageServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Conversation not found");
 
-        verify(ragService, never()).answer(any());
+        verify(ragService, never()).answer(any(), any());
         verify(chatMessageStorageService, never()).appendMessagePair(any(), any(), any(), any());
     }
 
@@ -226,7 +226,7 @@ class ChatMessageServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Conversation not found");
 
-        verify(ragService, never()).answer(any());
+        verify(ragService, never()).answer(any(), any());
         verify(chatMessageStorageService, never()).appendMessagePair(any(), any(), any(), any());
     }
 
@@ -237,7 +237,7 @@ class ChatMessageServiceTest {
         UUID sessionId = UUID.randomUUID();
         String question = "Complex prompt";
 
-        when(ragService.answer(question))
+        when(ragService.answer(question, userId))
                 .thenThrow(new IllegalStateException("RAG LLM connection timed out"));
 
         assertThatThrownBy(() -> chatMessageService.sendMessage(sessionId, question, user))
@@ -245,7 +245,7 @@ class ChatMessageServiceTest {
                 .hasMessage("RAG LLM connection timed out");
 
         verify(chatMessageStorageService).validateOwnership(sessionId, userId);
-        verify(ragService).answer(question);
+        verify(ragService).answer(question, userId);
         verify(chatMessageStorageService, never()).appendMessagePair(any(), any(), any(), any());
     }
 
