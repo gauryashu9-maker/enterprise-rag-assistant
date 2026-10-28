@@ -15,6 +15,7 @@ import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
@@ -39,6 +40,20 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getTitle()).isEqualTo("Validation failed");
         assertThat(problem.getProperties()).containsEntry("errors", java.util.Map.of("filename", "must not be blank"));
         assertThat(problem.getInstance()).hasToString("/probe/validation");
+    }
+
+    @Test
+    void mapsMissingServletRequestParameterToBadRequestProblem() {
+        MissingServletRequestParameterException exception =
+                new MissingServletRequestParameterException("file", "MultipartFile");
+
+        ProblemDetail problem = handler.handleMissingServletRequestParameter(
+                exception, request("/api/documents/upload"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Bad request");
+        assertThat(problem.getDetail()).isEqualTo("Required parameter 'file' is missing");
+        assertThat(problem.getInstance()).hasToString("/api/documents/upload");
     }
 
     @Test
