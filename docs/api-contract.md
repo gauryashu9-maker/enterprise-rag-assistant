@@ -54,10 +54,49 @@ The chat session and conversation endpoints are implemented and security-enforce
 | `POST /api/chat/sessions` | Implemented | Create a new chat session for the authenticated user. Returns a `Location` header pointing to the created session resource. | `201 Created`, one `ChatSessionResponse`. |
 | `GET /api/chat/sessions` | Implemented | List all chat sessions belonging to the authenticated user, newest first (`createdAt` descending). | `200 OK`, JSON array of `ChatSessionResponse` objects. |
 | `GET /api/chat/sessions/{id}` | Implemented | Retrieve the session and its chronological message history (`createdAt ASC, id ASC`). Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `ChatConversationResponse`. |
+| `POST /api/chat/sessions/{id}/messages` | Implemented | Send a user message within an owned chat session. Generates an AI answer via RAG and persists both the USER question and ASSISTANT answer with resilient retry. If persistence fails after retries, the generated answer is still returned successfully. Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `SendChatMessageResponse`. |
 
-All chat endpoints require a valid bearer JWT. A missing, invalid, or expired token returns `401 Unauthorized` with a `ProblemDetail`. A missing or cross-owner conversation returns a `404 ProblemDetail`.
+All chat endpoints require a valid bearer JWT. A missing, invalid, or expired token returns `401 Unauthorized` with a `ProblemDetail`. A missing or cross-owner conversation returns a `404 ProblemDetail`. Blank or missing message payloads return a `400 Validation ProblemDetail`.
 
 ### Chat DTO JSON shapes
+
+`SendChatMessageRequest`:
+
+```json
+{
+  "message": "How many days of paid leave do I get?"
+}
+```
+
+`SendChatMessageResponse`:
+
+```json
+{
+  "userMessage": {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "sessionId": "22222222-2222-4222-8222-222222222222",
+    "role": "USER",
+    "content": "How many days of paid leave do I get?",
+    "createdAt": "2026-10-24T10:00:00Z"
+  },
+  "assistantMessage": {
+    "id": "66666666-7777-8888-9999-aaaaaaaaaaaa",
+    "sessionId": "22222222-2222-4222-8222-222222222222",
+    "role": "ASSISTANT",
+    "content": "Employees get 24 days of paid annual leave.",
+    "createdAt": "2026-10-24T10:00:01Z"
+  },
+  "citations": [
+    {
+      "documentName": "hr-policy.pdf",
+      "page": 1,
+      "snippet": "Employees get 24 days of paid annual leave per calendar year."
+    }
+  ]
+}
+```
+
+> **Best-Effort History Persistence**: RAG generation executes outside database transactions to avoid holding HikariCP connections during model inference. Persistence of user and assistant messages is attempted with up to 3 total attempts for transient database failures (`TransientDataAccessException`). If database persistence fails or retries are exhausted, the endpoint still returns `200 OK` with the generated answer and citations so users never lose a completed response. In that unpersisted scenario, `userMessage.id` and `assistantMessage.id` are returned as `null` to explicitly indicate that the messages were not persisted to database history.
 
 `ChatSessionResponse`:
 
@@ -153,6 +192,7 @@ Request:
 - `citations` lists the retrieved chunks the answer was built from, best match first. The number varies (up to 5).
 - `page` can be `null`. `snippet` is at most about 200 characters and ends with `...` when cut. `documentName` is `unknown` when a chunk has no filename.
 - How citations are chosen: the model is asked for structured JSON (the answer plus the numbers of the context chunks it used). The citations are then built from our own chunk metadata for those numbers, so a source name or page can never be invented. If the model does not return valid JSON, its raw text is used as the answer and all retrieved chunks are cited.
+- Scope: answers use only the documents owned by the authenticated user. The user id comes from the token, never from the request, so another user's documents are never retrieved.
 
 When no relevant chunk is found, or the model has no answer, the response is still 200 OK:
 

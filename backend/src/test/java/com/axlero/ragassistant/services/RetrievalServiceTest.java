@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +14,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -20,15 +22,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 
 class RetrievalServiceTest {
+    private static final UUID OWNER = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
 
     @Test
     void usesConfiguredTopKAndThreshold() {
         VectorStore vectorStore = mock(VectorStore.class);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(new Document("chunk")));
 
-        List<Document> result = new RetrievalService(vectorStore, 3, 0.4, 0.85).retrieve("leave?");
+        List<Document> result = new RetrievalService(vectorStore, 3, 0.4, 0.85).retrieve("leave?", OWNER);
 
         ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
         verify(vectorStore).similaritySearch(captor.capture());
@@ -43,7 +47,7 @@ class RetrievalServiceTest {
         VectorStore vectorStore = mock(VectorStore.class);
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(null);
 
-        assertTrue(new RetrievalService(vectorStore, 5, 0.4, 0.85).retrieve("anything").isEmpty());
+        assertTrue(new RetrievalService(vectorStore, 5, 0.4, 0.85).retrieve("anything", OWNER).isEmpty());
     }
 
     @Test
@@ -63,7 +67,7 @@ class RetrievalServiceTest {
                     .build();
             when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(chunk));
 
-            new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q");
+            new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q", OWNER);
 
             assertTrue(appender.list.stream().anyMatch(e -> e.getFormattedMessage().contains("score=")));
             assertTrue(appender.list.stream().noneMatch(e -> e.getFormattedMessage().contains("secret-salary.pdf")));
@@ -92,7 +96,7 @@ class RetrievalServiceTest {
         Document weak = Document.builder().text("weak").score(0.57).build();
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(best, weak));
 
-        List<Document> result = new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q");
+        List<Document> result = new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q", OWNER);
 
         assertEquals(1, result.size());
         assertEquals("best", result.get(0).getText());
@@ -110,8 +114,8 @@ class RetrievalServiceTest {
         Document weak = Document.builder().text("weak").score(0.57).build();
         when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of(best, weak));
 
-        assertEquals(2, new RetrievalService(vectorStore, 5, 0.55, 0.5).retrieve("q").size());
-        assertEquals(1, new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q").size());
+        assertEquals(2, new RetrievalService(vectorStore, 5, 0.55, 0.5).retrieve("q", OWNER).size());
+        assertEquals(1, new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q", OWNER).size());
     }
 
     @Test
@@ -120,5 +124,31 @@ class RetrievalServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> new RetrievalService(vectorStore, 5, 0.55, 1.5));
         assertThrows(IllegalArgumentException.class, () -> new RetrievalService(vectorStore, 5, 0.55, -0.1));
+    }
+
+    @Test
+    void searchIsFilteredToTheGivenOwnerOnly() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+        UUID other = UUID.fromString("00000000-0000-0000-0000-0000000000b2");
+        RetrievalService service = new RetrievalService(vectorStore, 5, 0.55, 0.85);
+
+        service.retrieve("q", OWNER);
+        service.retrieve("q", other);
+
+        ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(vectorStore, times(2)).similaritySearch(captor.capture());
+        assertEquals(new FilterExpressionBuilder().eq("ownerId", OWNER.toString()).build(),
+                captor.getAllValues().get(0).getFilterExpression());
+        assertEquals(new FilterExpressionBuilder().eq("ownerId", other.toString()).build(),
+                captor.getAllValues().get(1).getFilterExpression());
+    }
+
+    @Test
+    void retrievalWithoutAnOwnerIsRejected() {
+        VectorStore vectorStore = mock(VectorStore.class);
+
+        assertThrows(NullPointerException.class,
+                () -> new RetrievalService(vectorStore, 5, 0.55, 0.85).retrieve("q", null));
     }
 }
