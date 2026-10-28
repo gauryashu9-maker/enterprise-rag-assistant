@@ -7,6 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.axlero.ragassistant.dto.LoginRequest;
+import com.axlero.ragassistant.dto.LoginResponse;
+import org.springframework.security.authentication.BadCredentialsException;
+
 import com.axlero.ragassistant.dto.RegisterRequest;
 import com.axlero.ragassistant.dto.RegisterResponse;
 import com.axlero.ragassistant.entities.Role;
@@ -73,5 +77,41 @@ class AuthControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Email already registered"))
                 .andExpect(jsonPath("$.instance").value("/api/auth/register"));
+    }
+        @Test
+    void loginReturns200WithTokenEmailAndRole() throws Exception {
+        when(authService.login(any(LoginRequest.class)))
+                .thenReturn(new LoginResponse("TOKEN", "alice@example.com", Role.USER));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"alice@example.com\",\"password\":\"secret123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").value("TOKEN"))
+                .andExpect(jsonPath("$.email").value("alice@example.com"))
+                .andExpect(jsonPath("$.role").value("USER"));
+    }
+
+    @Test
+    void loginReturns401WithTheFixedDetailForBadCredentials() throws Exception {
+        when(authService.login(any(LoginRequest.class)))
+                .thenThrow(new BadCredentialsException("internal detail that must not leak"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"alice@example.com\",\"password\":\"wrong\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Unauthorized"))
+                .andExpect(jsonPath("$.detail").value("Invalid email or password"))
+                .andExpect(jsonPath("$.instance").value("/api/auth/login"));
+    }
+
+    @Test
+    void loginRejectsBlankFieldsWith400() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"\",\"password\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"));
     }
 }
