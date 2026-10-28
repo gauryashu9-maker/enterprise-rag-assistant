@@ -60,7 +60,7 @@ public class ChatMessageService {
         chatMessageStorageService.validateOwnership(sessionId, user.id());
 
         // 2. Call RAG outside database transaction so LLM calls never hold DB connections
-        RagAnswer ragAnswer = ragService.answer(question);
+        RagAnswer ragAnswer = ragService.answer(question, user.id());
 
         // 3. Persist USER and ASSISTANT messages atomically with up to 3 attempts for transient failures
         Optional<ChatMessageStorageService.PersistedMessagePair> persisted =
