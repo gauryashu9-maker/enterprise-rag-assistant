@@ -6,6 +6,7 @@ import com.axlero.ragassistant.dto.RagAnswer;
 import com.axlero.ragassistant.dto.RagStreamEvent;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,8 +45,8 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
-    public RagAnswer answer(String question) {
-        List<Document> chunks = retrievalService.retrieve(question);
+    public RagAnswer answer(String question, UUID ownerId) {
+        List<Document> chunks = retrievalService.retrieve(question, ownerId);
         if (chunks.isEmpty()) {
             // Nothing relevant found: skip the LLM call entirely (cheaper, and it cannot hallucinate).
             return new RagAnswer(NO_ANSWER, List.of());
@@ -103,9 +104,9 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
-    public Flux<RagStreamEvent> answerStream(String question) {
+    public Flux<RagStreamEvent> answerStream(String question, UUID ownerId) {
         return Flux.defer(() -> {
-            List<Document> chunks = retrievalService.retrieve(question);
+            List<Document> chunks = retrievalService.retrieve(question, ownerId);
             if (chunks.isEmpty()) {
                 // Nothing relevant found: skip the model entirely and stream the fallback sentence.
                 return Flux.just(RagStreamEvent.token(NO_ANSWER),

@@ -76,4 +76,15 @@ class UserRepositoryTest {
 
         assertThat(stored).isEqualTo("ADMIN");
     }
+        @Test
+    void existsByEmailIsTrueForASavedUser() {
+        users.saveAndFlush(new User("exists@example.com", "hash", Role.USER));
+
+        assertThat(users.existsByEmail("exists@example.com")).isTrue();
+    }
+
+    @Test
+    void existsByEmailIsFalseForAnUnknownEmail() {
+        assertThat(users.existsByEmail("missing@example.com")).isFalse();
+    }
 }
