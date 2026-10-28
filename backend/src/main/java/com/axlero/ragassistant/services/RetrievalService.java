@@ -2,15 +2,17 @@ package com.axlero.ragassistant.services;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/** Finds the document chunks most similar to a question. */
+/** Finds the document chunks most similar to a question, among one user's documents only. */
 @Service
 public class RetrievalService {
 
@@ -35,11 +37,14 @@ public class RetrievalService {
         this.relativeCutoff = relativeCutoff;
     }
 
-    public List<Document> retrieve(String question) {
+    /** Searches only the chunks whose ownerId metadata equals {@code ownerId}. There is no unfiltered search. */
+    public List<Document> retrieve(String question, UUID ownerId) {
+        Objects.requireNonNull(ownerId, "ownerId is required: retrieval is always scoped to one user");
         SearchRequest request = SearchRequest.builder()
                 .query(question)
                 .topK(topK)
                 .similarityThreshold(similarityThreshold)
+                .filterExpression(new FilterExpressionBuilder().eq(ChunkMetadata.OWNER_ID, ownerId.toString()).build())
                 .build();
         List<Document> results = vectorStore.similaritySearch(request);
         List<Document> chunks = keepNearBest(results == null ? List.of() : results, relativeCutoff);
