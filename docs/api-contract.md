@@ -324,6 +324,18 @@ The backend `GlobalExceptionHandler` returns Spring `ProblemDetail` responses wi
 }
 ```
 
+**400 — Type mismatch.** Malformed path variables or request parameters (such as an unparseable UUID) receive a sanitized ProblemDetail response with the parameter name; internal converter details, stack traces, and submitted values are not exposed.
+
+```json
+{
+  "type": "about:blank",
+  "title": "Type mismatch",
+  "status": 400,
+  "detail": "Failed to convert parameter 'id'",
+  "instance": "/api/documents/invalid-uuid"
+}
+```
+
 **404 — Resource not found.** `detail` contains the `ResourceNotFoundException` message.
 
 ```json
