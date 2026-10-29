@@ -7,6 +7,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -71,6 +72,20 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getDetail()).isEqualTo("Failed to convert request parameter");
         assertThat(problem.getDetail()).doesNotContain("invalid-uuid");
         assertThat(problem.getInstance()).hasToString("/api/documents/invalid-uuid");
+    }
+
+    @Test
+    void mapsUnreadableRequestToBadRequestProblem() {
+        HttpMessageNotReadableException exception = new HttpMessageNotReadableException(
+                "Required request body is missing", (org.springframework.http.HttpInputMessage) null);
+
+        ProblemDetail problem = handler.handleUnreadableRequest(
+                exception, request("/probe/validation"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Malformed request");
+        assertThat(problem.getDetail()).isEqualTo("Request body is missing or invalid");
+        assertThat(problem.getInstance()).hasToString("/probe/validation");
     }
 
     @Test
