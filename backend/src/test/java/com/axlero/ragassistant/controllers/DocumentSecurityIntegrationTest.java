@@ -25,6 +25,7 @@ import com.axlero.ragassistant.exceptions.ResourceNotFoundException;
 import com.axlero.ragassistant.security.JwtAuthenticationFilter;
 import com.axlero.ragassistant.security.SecurityProblemHandler;
 import com.axlero.ragassistant.services.DocumentDeletionService;
+import com.axlero.ragassistant.services.DocumentIngestionService;
 import com.axlero.ragassistant.services.DocumentQueryService;
 import com.axlero.ragassistant.services.JwtService;
 import java.security.SecureRandom;
@@ -48,22 +49,22 @@ import org.springframework.test.web.servlet.MockMvc;
  *
  * <p>These tests use the real Spring Security filter chain (SecurityConfig, JwtAuthenticationFilter,
  * SecurityProblemHandler) and a real JwtService, so they verify the full JWT authentication and
- * authorization path — not a stub. Services (DocumentQueryService, DocumentDeletionService) are
- * mocked so no database or vector store is needed.
+ * authorization path - not a stub. Services (DocumentQueryService, DocumentDeletionService,
+ * DocumentIngestionService) are mocked so no database or vector store is needed.
  *
  * <p>Covers:
  * <ul>
- *   <li>Missing token → 401 ProblemDetail with correct {@code instance} path (PR #40)
- *   <li>Invalid/malformed token → 401 ProblemDetail
- *   <li>Expired token → 401 ProblemDetail
- *   <li>Valid USER token → service called with the principal extracted from the JWT
- *   <li>Valid ADMIN token → admin sees all documents
- *   <li>USER cannot read another owner's document → 404 ProblemDetail
- *   <li>USER cannot delete another owner's document → 404 ProblemDetail
- *   <li>ADMIN can delete any document → 204 No Content
- *   <li>Missing token on DELETE → 401 ProblemDetail with correct instance
- *   <li>Token signed with a different key → 401 ProblemDetail
- *   <li>Authenticated USER list → 200 with owned documents only
+ *   <li>Missing token -> 401 ProblemDetail with correct {@code instance} path (PR #40)
+ *   <li>Invalid/malformed token -> 401 ProblemDetail
+ *   <li>Expired token -> 401 ProblemDetail
+ *   <li>Valid USER token -> service called with the principal extracted from the JWT
+ *   <li>Valid ADMIN token -> admin sees all documents
+ *   <li>USER cannot read another owner's document -> 404 ProblemDetail
+ *   <li>USER cannot delete another owner's document -> 404 ProblemDetail
+ *   <li>ADMIN can delete any document -> 204 No Content
+ *   <li>Missing token on DELETE -> 401 ProblemDetail with correct instance
+ *   <li>Token signed with a different key -> 401 ProblemDetail
+ *   <li>Authenticated USER list -> 200 with owned documents only
  * </ul>
  */
 @WebMvcTest(DocumentController.class)
@@ -104,9 +105,12 @@ class DocumentSecurityIntegrationTest {
     @MockitoBean
     private DocumentDeletionService documentDeletionService;
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 1. Missing token → 401 with correct ProblemDetail.instance  (PR #40)
-    // ──────────────────────────────────────────────────────────────────────────
+    @MockitoBean
+    private DocumentIngestionService documentIngestionService;
+
+    // ------------------------------------------------------------------------
+    // 1. Missing token -> 401 with correct ProblemDetail.instance  (PR #40)
+    // ------------------------------------------------------------------------
 
     @Test
     void getDocumentsWithNoTokenReturns401ProblemDetailWithCorrectInstance() throws Exception {
@@ -120,9 +124,9 @@ class DocumentSecurityIntegrationTest {
         verify(documentQueryService, never()).listDocuments(any(AuthenticatedUser.class));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 2. Invalid / malformed token → 401
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 2. Invalid / malformed token -> 401
+    // ------------------------------------------------------------------------
 
     @Test
     void getDocumentsWithMalformedTokenReturns401() throws Exception {
@@ -136,9 +140,9 @@ class DocumentSecurityIntegrationTest {
         verify(documentQueryService, never()).listDocuments(any(AuthenticatedUser.class));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 3. Expired token → 401
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 3. Expired token -> 401
+    // ------------------------------------------------------------------------
 
     @Test
     void getDocumentsWithExpiredTokenReturns401() throws Exception {
@@ -153,13 +157,13 @@ class DocumentSecurityIntegrationTest {
         verify(documentQueryService, never()).listDocuments(any(AuthenticatedUser.class));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 4. Token signed with a different key → 401
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 4. Token signed with a different key -> 401
+    // ------------------------------------------------------------------------
 
     @Test
     void getDocumentsWithTokenSignedByWrongKeyReturns401() throws Exception {
-        // Mint a token with a different random key — signature verification must fail.
+        // Mint a token with a different random key - signature verification must fail.
         byte[] otherKey = new byte[32];
         new SecureRandom().nextBytes(otherKey);
         String wrongSecret = Base64.getEncoder().encodeToString(otherKey);
@@ -175,9 +179,9 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$.instance", equalTo("/api/documents")));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 5. Valid USER token → listDocuments called with the principal from the JWT
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 5. Valid USER token -> listDocuments called with the principal from the JWT
+    // ------------------------------------------------------------------------
 
     @Test
     void authenticatedUserSeesOnlyTheirOwnDocuments() throws Exception {
@@ -196,9 +200,9 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$[0].filename", equalTo("handbook.pdf")));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 6. Valid ADMIN token → admin sees all documents
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 6. Valid ADMIN token -> admin sees all documents
+    // ------------------------------------------------------------------------
 
     @Test
     void authenticatedAdminSeesAllDocuments() throws Exception {
@@ -216,9 +220,9 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$[1].filename", equalTo("b.pdf")));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 7. USER GET /{id} for owned document → 200
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 7. USER GET /{id} for owned document -> 200
+    // ------------------------------------------------------------------------
 
     @Test
     void authenticatedUserGetsTheirOwnDocumentBy200() throws Exception {
@@ -235,9 +239,9 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$.filename", equalTo("policy.pdf")));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 8. USER GET /{id} for another owner's document → 404 ProblemDetail
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 8. USER GET /{id} for another owner's document -> 404 ProblemDetail
+    // ------------------------------------------------------------------------
 
     @Test
     void authenticatedUserCannotReadAnotherOwnersDocumentGets404() throws Exception {
@@ -258,9 +262,9 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$.instance", equalTo("/api/documents/" + docId)));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 9. ADMIN GET /{id} for any document → 200
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 9. ADMIN GET /{id} for any document -> 200
+    // ------------------------------------------------------------------------
 
     @Test
     void authenticatedAdminGetsAnyDocumentAcrossOwners() throws Exception {
@@ -277,9 +281,9 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$.filename", equalTo("cross-owner.pdf")));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 10. USER DELETE /{id} for another owner → 404 ProblemDetail
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 10. USER DELETE /{id} for another owner -> 404 ProblemDetail
+    // ------------------------------------------------------------------------
 
     @Test
     void authenticatedUserCannotDeleteAnotherOwnersDocumentGets404() throws Exception {
@@ -300,9 +304,9 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$.instance", equalTo("/api/documents/" + docId)));
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // 11. Missing token on DELETE → 401 with correct instance (PR #40)
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
+    // 11. Missing token on DELETE -> 401 with correct instance (PR #40)
+    // ------------------------------------------------------------------------
 
     @Test
     void deleteWithNoTokenReturns401ProblemDetailWithCorrectInstance() throws Exception {
@@ -318,9 +322,9 @@ class DocumentSecurityIntegrationTest {
         verify(documentDeletionService, never()).deleteDocument(any(), any());
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
     // Helpers
-    // ──────────────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------------------
 
     /** Argmatcher: any AuthenticatedUser with the given id and role USER. */
     private AuthenticatedUser userWithId(UUID id) {

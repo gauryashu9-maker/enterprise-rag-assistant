@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
@@ -45,6 +46,19 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, "Request body is missing or invalid");
         problem.setTitle("Malformed request");
+        return withInstance(problem, request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ProblemDetail handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
+        String parameterName = exception.getName();
+        String detail = parameterName != null && !parameterName.isBlank()
+                ? "Failed to convert parameter '" + parameterName + "'"
+                : "Failed to convert request parameter";
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, detail);
+        problem.setTitle("Type mismatch");
         return withInstance(problem, request);
     }
 

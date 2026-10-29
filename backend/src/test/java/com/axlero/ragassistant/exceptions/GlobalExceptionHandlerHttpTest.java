@@ -15,12 +15,15 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -55,6 +58,20 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(jsonPath("$.status", equalTo(400)))
                 .andExpect(jsonPath("$.instance", equalTo("/probe/validation")))
                 .andExpect(jsonPath("$.errors.name", equalTo("must not be blank")));
+    }
+
+    @Test
+    void returnsBadRequestProblemForTypeMismatchPathVariable() throws Exception {
+        mockMvc.perform(get("/probe/documents/not-a-valid-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Type mismatch")))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.detail", equalTo("Failed to convert parameter 'id'")))
+                .andExpect(jsonPath("$.detail", not(containsString("not-a-valid-uuid"))))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/documents/not-a-valid-uuid")))
+                .andExpect(content().string(not(containsString("IllegalArgumentException"))))
+                .andExpect(content().string(not(containsString("MethodArgumentTypeMismatchException"))));
     }
 
     @Test
@@ -237,6 +254,10 @@ class GlobalExceptionHandlerHttpTest {
     @RestController
     @RequestMapping("/probe")
     static class ErrorProbeController {
+
+        @GetMapping("/documents/{id}")
+        void documentById(@PathVariable("id") UUID id) {
+        }
 
         @PostMapping(value = "/validation", consumes = MediaType.APPLICATION_JSON_VALUE)
         void validate(@Valid @RequestBody ValidRequest request) {
