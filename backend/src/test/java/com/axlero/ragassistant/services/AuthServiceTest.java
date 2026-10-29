@@ -21,6 +21,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.axlero.ragassistant.dto.LoginRequest;
+import com.axlero.ragassistant.dto.LoginResponse;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.util.Optional;
+import java.util.UUID;
+
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
@@ -30,9 +37,12 @@ class AuthServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private JwtService jwtService;
+
     @Test
     void registerNormalizesEmailHashesPasswordAndAssignsUserRole() {
-        AuthService service = new AuthService(userRepository, passwordEncoder);
+                AuthService service = new AuthService(userRepository, passwordEncoder, jwtService);
         when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
         when(passwordEncoder.encode("secret123")).thenReturn("HASHED");
         when(userRepository.saveAndFlush(any(User.class))).thenAnswer(call -> call.getArgument(0));
@@ -50,7 +60,7 @@ class AuthServiceTest {
 
     @Test
     void registerRejectsAnExistingEmail() {
-        AuthService service = new AuthService(userRepository, passwordEncoder);
+                AuthService service = new AuthService(userRepository, passwordEncoder, jwtService);
         when(userRepository.existsByEmail("alice@example.com")).thenReturn(true);
 
         assertThatThrownBy(() -> service.register(new RegisterRequest("alice@example.com", "secret123")))
@@ -60,12 +70,53 @@ class AuthServiceTest {
 
     @Test
     void registerMapsAUniqueConstraintRaceToConflict() {
-        AuthService service = new AuthService(userRepository, passwordEncoder);
+                AuthService service = new AuthService(userRepository, passwordEncoder, jwtService);
         when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
         when(passwordEncoder.encode("secret123")).thenReturn("HASHED");
         when(userRepository.saveAndFlush(any(User.class))).thenThrow(new DataIntegrityViolationException("dup"));
 
         assertThatThrownBy(() -> service.register(new RegisterRequest("alice@example.com", "secret123")))
                 .isInstanceOf(EmailAlreadyRegisteredException.class);
+    }
+
+        @Test
+    void loginReturnsATokenForValidCredentials() {
+        AuthService service = new AuthService(userRepository, passwordEncoder, jwtService);
+        UUID id = UUID.randomUUID();
+        User user = new User("alice@example.com", "HASHED", Role.USER);
+        ReflectionTestUtils.setField(user, "id", id);
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("secret123", "HASHED")).thenReturn(true);
+        when(jwtService.generateToken(id, "alice@example.com", Role.USER)).thenReturn("TOKEN");
+
+        LoginResponse response = service.login(new LoginRequest("  Alice@Example.com ", "secret123"));
+
+        assertThat(response.token()).isEqualTo("TOKEN");
+        assertThat(response.email()).isEqualTo("alice@example.com");
+        assertThat(response.role()).isEqualTo(Role.USER);
+    }
+
+    @Test
+    void loginRejectsAnUnknownEmailWithTheGenericMessage() {
+        AuthService service = new AuthService(userRepository, passwordEncoder, jwtService);
+        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("nobody@example.com", "secret123")))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessage("Invalid email or password");
+        verify(jwtService, never()).generateToken(any(), any(), any());
+    }
+
+    @Test
+    void loginRejectsAWrongPasswordWithTheSameMessage() {
+        AuthService service = new AuthService(userRepository, passwordEncoder, jwtService);
+        User user = new User("alice@example.com", "HASHED", Role.USER);
+        when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "HASHED")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("alice@example.com", "wrong-password")))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessage("Invalid email or password");
+        verify(jwtService, never()).generateToken(any(), any(), any());
     }
 }
