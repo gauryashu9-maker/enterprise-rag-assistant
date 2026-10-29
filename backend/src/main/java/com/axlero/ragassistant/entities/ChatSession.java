@@ -1,3 +1,4 @@
+
 package com.axlero.ragassistant.entities;
 
 import jakarta.persistence.CascadeType;
@@ -30,8 +31,11 @@ public class ChatSession {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("createdAt ASC, id ASC")
+    @OneToMany(
+            mappedBy = "session",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true)
+    @OrderBy("sequenceNumber ASC")
     private List<ChatMessage> messages = new ArrayList<>();
 
     protected ChatSession() {
@@ -59,6 +63,7 @@ public class ChatSession {
     }
 
     public void addMessage(ChatMessage message) {
+        message.setSequenceNumber(messages.size());
         messages.add(message);
         message.setSession(this);
     }
