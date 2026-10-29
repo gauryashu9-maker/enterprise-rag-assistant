@@ -1,38 +1,78 @@
 
 package com.axlero.ragassistant.services;
 
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Locale;
+
+import org.springframework.ai.document.Document;
+import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class DocumentService {
 
+    private static final long MAX_FILE_SIZE = 5L * 1024 * 1024;
+
     public String extractText(MultipartFile file) throws IOException {
-        // 1. Check if file is empty
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException(
-                "File is empty. Please upload a valid file."
-            );
+            throw new IllegalArgumentException("File is empty.");
         }
 
-        // 2. Check file size (Max 5MB)
-        if (file.getSize() > 5 * 1024 * 1024) {
+        if (file.getSize() > MAX_FILE_SIZE) {
             throw new IllegalArgumentException(
-                "File is too large. Maximum size is 5MB."
-            );
+                    "File is too large. Maximum size is 5MB.");
         }
 
-        // 3. Check file type (Only text files for now)
+        String filename = file.getOriginalFilename();
         String contentType = file.getContentType();
-        if (contentType == null || !contentType.equals("text/plain")) {
+
+        boolean isTxt = filename != null
+                && filename.toLowerCase(Locale.ROOT).endsWith(".txt")
+                && "text/plain".equalsIgnoreCase(contentType);
+
+        boolean isPdf = filename != null
+                && filename.toLowerCase(Locale.ROOT).endsWith(".pdf")
+                && "application/pdf".equalsIgnoreCase(contentType);
+
+        if (!isTxt && !isPdf) {
             throw new IllegalArgumentException(
-                "Only .txt files are allowed currently."
-            );
+                    "Only TXT and PDF files are supported.");
         }
 
-        // 4. Extract text
-        return new String(file.getBytes(), StandardCharsets.UTF_8);
+        byte[] bytes = file.getBytes();
+
+        if (isTxt) {
+            return new String(bytes, StandardCharsets.UTF_8);
+        }
+
+        if (bytes.length < 5
+                || bytes[0] != '%'
+                || bytes[1] != 'P'
+                || bytes[2] != 'D'
+                || bytes[3] != 'F'
+                || bytes[4] != '-') {
+            throw new IllegalArgumentException("Invalid PDF file.");
+        }
+
+        try (ByteArrayInputStream input = new ByteArrayInputStream(bytes)) {
+            var reader = new PagePdfDocumentReader(
+                    new InputStreamResource(input));
+            List<Document> pages = reader.get();
+
+            return pages.stream()
+                    .map(Document::getText)
+                    .filter(text -> text != null && !text.isBlank())
+                    .reduce((first, second) -> first + "\n" + second)
+                    .orElse("");
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("Failed to extract text from PDF.", e);
+        }
     }
 }
