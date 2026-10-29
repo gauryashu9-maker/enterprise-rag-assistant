@@ -9,7 +9,9 @@ import com.axlero.ragassistant.services.ChatConversationQueryService;
 import com.axlero.ragassistant.services.ChatMessageService;
 import com.axlero.ragassistant.services.ChatSessionService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Flux;
 
 import java.net.URI;
 import java.util.List;
@@ -75,5 +78,17 @@ public class ChatController {
             throw new IllegalStateException("ChatMessageService is not available");
         }
         return chatMessageService.sendMessage(id, request.message(), user);
+    }
+
+    @PostMapping(value = "/{id}/messages/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<Object>> streamMessage(
+            @PathVariable UUID id,
+            @Valid @RequestBody SendChatMessageRequest request,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        if (chatMessageService == null) {
+            throw new IllegalStateException("ChatMessageService is not available");
+        }
+        return chatMessageService.streamMessage(id, request.message(), user)
+                .map(e -> ServerSentEvent.<Object>builder().event(e.event()).data(e.data()).build());
     }
 }
