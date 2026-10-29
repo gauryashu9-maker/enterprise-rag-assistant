@@ -1,20 +1,22 @@
 package com.axlero.ragassistant.services;
 
-import com.axlero.ragassistant.dto.AuthenticatedUser;
-import com.axlero.ragassistant.dto.ChatMessageResponse;
-import com.axlero.ragassistant.dto.RagAnswer;
-import com.axlero.ragassistant.dto.SendChatMessageResponse;
-import com.axlero.ragassistant.entities.ChatMessageRole;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.dao.TransientDataAccessException;
-import org.springframework.stereotype.Service;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.TransientDataAccessException;
+import org.springframework.stereotype.Service;
+
+import com.axlero.ragassistant.dto.AuthenticatedUser;
+import com.axlero.ragassistant.dto.ChatMessageResponse;
+import com.axlero.ragassistant.dto.RagAnswer;
+import com.axlero.ragassistant.dto.SendChatMessageResponse;
+import com.axlero.ragassistant.entities.ChatMessageRole;
 
 @Service
 public class ChatMessageService {
@@ -32,7 +34,7 @@ public class ChatMessageService {
     private final RagService ragService;
     private final Duration retryBackoff;
     private final Sleeper sleeper;
-
+    @Autowired
     public ChatMessageService(
             ChatMessageStorageService chatMessageStorageService,
             RagService ragService) {
