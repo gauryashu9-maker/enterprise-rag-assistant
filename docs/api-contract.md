@@ -55,6 +55,7 @@ The chat session and conversation endpoints are implemented and security-enforce
 | `GET /api/chat/sessions` | Implemented | List all chat sessions belonging to the authenticated user, newest first (`createdAt` descending). | `200 OK`, JSON array of `ChatSessionResponse` objects. |
 | `GET /api/chat/sessions/{id}` | Implemented | Retrieve the session and its chronological message history (`createdAt ASC, id ASC`). Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `ChatConversationResponse`. |
 | `POST /api/chat/sessions/{id}/messages` | Implemented | Send a user message within an owned chat session. Generates an AI answer via RAG and persists both the USER question and ASSISTANT answer with resilient retry. If persistence fails after retries, the generated answer is still returned successfully. Cross-owner or missing sessions return 404 for all roles. | `200 OK`, one `SendChatMessageResponse`. |
+| `POST /api/chat/sessions/{id}/messages/stream` | Implemented | Stream RAG answer tokens and citations for a user message within an owned chat session using Server-Sent Events (`text/event-stream`). User question and assistant answer are saved to session history upon successful stream completion (`done`). Cross-owner or missing sessions return 404 for all roles before opening stream. | `200 OK`, `text/event-stream` stream of SSE events (`token`, `citations`, `done`, `error`). |
 
 All chat endpoints require a valid bearer JWT. A missing, invalid, or expired token returns `401 Unauthorized` with a `ProblemDetail`. A missing or cross-owner conversation returns a `404 ProblemDetail`. Blank or missing message payloads return a `400 Validation ProblemDetail`.
 
@@ -97,6 +98,37 @@ All chat endpoints require a valid bearer JWT. A missing, invalid, or expired to
 ```
 
 > **Best-Effort History Persistence**: RAG generation executes outside database transactions to avoid holding HikariCP connections during model inference. Persistence of user and assistant messages is attempted with up to 3 total attempts for transient database failures (`TransientDataAccessException`). If database persistence fails or retries are exhausted, the endpoint still returns `200 OK` with the generated answer and citations so users never lose a completed response. In that unpersisted scenario, `userMessage.id` and `assistantMessage.id` are returned as `null` to explicitly indicate that the messages were not persisted to database history.
+
+### Streaming Chat Messages: POST /api/chat/sessions/{id}/messages/stream
+
+Stream RAG generated answers in real time for a chat session while automatically saving both user and assistant messages to database history when streaming completes.
+
+Status: **implemented**. Requires `Authorization: Bearer <jwt>`. Send `Accept: text/event-stream`.
+
+Request body: `SendChatMessageRequest`:
+```json
+{
+  "message": "Explain how RAG retrieval works."
+}
+```
+
+- Synchronous ownership validation: The authenticated caller's ownership of `{id}` is validated synchronously before opening the SSE stream. If the session does not exist or belongs to another user, `404 Not Found` ProblemDetail is returned immediately (never opening a stream connection).
+- Request validation: Missing or blank `message` returns `400 Validation failed` ProblemDetail.
+- Unauthenticated requests return `401 Unauthorized` ProblemDetail.
+
+Events match the `/api/rag/stream` specification in order:
+
+| `event` | `data` (JSON) | Description |
+| --- | --- | --- |
+| `token` | `{ "text": " retrieval..." }` | Emitted repeatedly as tokens are generated. Append `text` to the assistant answer. |
+| `citations` | `{ "citations": [ { "documentName": "arch.pdf", "page": 2, "snippet": "..." } ] }` | Emitted once after the final token. |
+| `done` | `{}` | Emitted when answer generation finishes normally. |
+| `error` | `{ "detail": "..." }` | Emitted if an error occurs midway through generation. |
+
+Save-on-done semantics & guarantees:
+- **Save on Completion**: Accumulates streamed tokens into the complete assistant answer and triggers background persistence (`persistMessagesWithRetry`) on `boundedElastic` only after receiving the `done` event.
+- **Receiving `done` does not guarantee database persistence**: The `done` event signals that RAG generation completed successfully and the client received the full answer. Database persistence is best-effort and runs asynchronously so that any slow database write or connection failure does not block or break the SSE stream delivered to the user.
+- **Cancellation & Error Isolation**: If the client disconnects before stream completion or the stream terminates with an `error` event, persistence is skipped, preventing partial or corrupt conversation history.
 
 `ChatSessionResponse`:
 
