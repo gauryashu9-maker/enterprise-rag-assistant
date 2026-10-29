@@ -15,9 +15,11 @@ import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -39,6 +41,36 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getTitle()).isEqualTo("Validation failed");
         assertThat(problem.getProperties()).containsEntry("errors", java.util.Map.of("filename", "must not be blank"));
         assertThat(problem.getInstance()).hasToString("/probe/validation");
+    }
+
+    @Test
+    void mapsMethodArgumentTypeMismatchToBadRequestProblem() {
+        MethodArgumentTypeMismatchException exception = new MethodArgumentTypeMismatchException(
+                "invalid-uuid", UUID.class, "id", null, null);
+
+        ProblemDetail problem = handler.handleMethodArgumentTypeMismatch(
+                exception, request("/api/documents/invalid-uuid"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Type mismatch");
+        assertThat(problem.getDetail()).isEqualTo("Failed to convert parameter 'id'");
+        assertThat(problem.getDetail()).doesNotContain("invalid-uuid");
+        assertThat(problem.getInstance()).hasToString("/api/documents/invalid-uuid");
+    }
+
+    @Test
+    void mapsMethodArgumentTypeMismatchWithoutParameterNameToGenericDetail() {
+        MethodArgumentTypeMismatchException exception = new MethodArgumentTypeMismatchException(
+                "invalid-uuid", UUID.class, null, null, null);
+
+        ProblemDetail problem = handler.handleMethodArgumentTypeMismatch(
+                exception, request("/api/documents/invalid-uuid"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Type mismatch");
+        assertThat(problem.getDetail()).isEqualTo("Failed to convert request parameter");
+        assertThat(problem.getDetail()).doesNotContain("invalid-uuid");
+        assertThat(problem.getInstance()).hasToString("/api/documents/invalid-uuid");
     }
 
     @Test
