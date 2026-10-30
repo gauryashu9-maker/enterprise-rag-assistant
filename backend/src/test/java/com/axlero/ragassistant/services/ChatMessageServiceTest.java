@@ -267,4 +267,57 @@ class ChatMessageServiceTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("User must not be null");
     }
+
+    @Test
+    void rejectsNullDependenciesInConstructor() {
+        assertThatThrownBy(() -> new ChatMessageService(null, ragService, Duration.ZERO, mockSleeper))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("ChatMessageStorageService must not be null");
+
+        assertThatThrownBy(() -> new ChatMessageService(chatMessageStorageService, null, Duration.ZERO, mockSleeper))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("RagService must not be null");
+    }
+
+    @Test
+    void constructorNormalizesNullAndNegativeBackoffToDefault() {
+        ChatMessageService serviceWithNullBackoff = new ChatMessageService(
+                chatMessageStorageService, ragService, null, mockSleeper);
+        ChatMessageService serviceWithNegativeBackoff = new ChatMessageService(
+                chatMessageStorageService, ragService, Duration.ofMillis(-100), mockSleeper);
+
+        assertThat(serviceWithNullBackoff).isNotNull();
+        assertThat(serviceWithNegativeBackoff).isNotNull();
+    }
+
+    @Test
+    void preservesInterruptStatusAndReturnsUnpersistedAnswerWhenRetryBackoffInterrupted() throws InterruptedException {
+        UUID userId = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser(userId, "user@example.com", Role.USER);
+        UUID sessionId = UUID.randomUUID();
+        String question = "Interrupted question";
+        String answer = "Interrupted answer";
+        List<Citation> citations = List.of(new Citation("handbook.pdf", 1, "snippet"));
+
+        when(ragService.answer(question, userId)).thenReturn(new RagAnswer(answer, citations));
+        when(chatMessageStorageService.appendMessagePair(sessionId, userId, question, answer))
+                .thenThrow(new CannotAcquireLockException("Transient lock conflict"));
+        doThrow(new InterruptedException("Interrupted during backoff"))
+                .when(mockSleeper).sleep(any());
+
+        SendChatMessageResponse response = chatMessageService.sendMessage(sessionId, question, user);
+
+        assertThat(response).isNotNull();
+        assertThat(response.userMessage().id()).isNull();
+        assertThat(response.assistantMessage().id()).isNull();
+        assertThat(response.assistantMessage().content()).isEqualTo(answer);
+        assertThat(response.citations()).isEqualTo(citations);
+
+        assertThat(Thread.currentThread().isInterrupted()).isTrue();
+        // Clear interrupted status for subsequent tests
+        Thread.interrupted();
+
+        verify(chatMessageStorageService, times(1)).appendMessagePair(sessionId, userId, question, answer);
+        verify(mockSleeper, times(1)).sleep(Duration.ZERO);
+    }
 }

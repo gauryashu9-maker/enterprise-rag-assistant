@@ -46,9 +46,9 @@ public class ChatMessageService {
             RagService ragService,
             Duration retryBackoff,
             Sleeper sleeper) {
-        this.chatMessageStorageService = chatMessageStorageService;
-        this.ragService = ragService;
-        this.retryBackoff = retryBackoff != null ? retryBackoff : DEFAULT_BACKOFF;
+        this.chatMessageStorageService = Objects.requireNonNull(chatMessageStorageService, "ChatMessageStorageService must not be null");
+        this.ragService = Objects.requireNonNull(ragService, "RagService must not be null");
+        this.retryBackoff = retryBackoff != null && !retryBackoff.isNegative() ? retryBackoff : DEFAULT_BACKOFF;
         this.sleeper = sleeper != null ? sleeper : duration -> Thread.sleep(duration.toMillis());
     }
 
