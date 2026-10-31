@@ -20,7 +20,7 @@ public class ChatMessageStorageService {
     private final ChatSessionRepository chatSessionRepository;
 
     public ChatMessageStorageService(ChatSessionRepository chatSessionRepository) {
-        this.chatSessionRepository = chatSessionRepository;
+        this.chatSessionRepository = Objects.requireNonNull(chatSessionRepository, "ChatSessionRepository must not be null");
     }
 
     @Transactional(readOnly = true)

@@ -12,6 +12,7 @@ import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -58,6 +59,18 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, detail);
         problem.setTitle("Type mismatch");
+        return withInstance(problem, request);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    ProblemDetail handleMissingServletRequestParameter(
+            MissingServletRequestParameterException exception, HttpServletRequest request) {
+        String parameterName = exception.getParameterName();
+        String detail = parameterName != null && !parameterName.isBlank()
+                ? "Required parameter '" + parameterName + "' is missing"
+                : "Required request parameter is missing";
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problem.setTitle("Bad request");
         return withInstance(problem, request);
     }
 
