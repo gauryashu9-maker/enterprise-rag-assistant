@@ -101,21 +101,21 @@ Controllers take/return DTO Records and contain no business logic. Services hold
 To build and spin up PostgreSQL, Spring Boot backend, and React frontend simultaneously:
 
 ```bash
-docker-compose up --build -d
+docker compose up -d
 ```
 
 ### Services & Port Mappings
-- **Frontend Application:** `http://localhost:3000`
+- **Frontend Application:** `http://localhost:80`
 - **Backend API:** `http://localhost:8080`
 - **PostgreSQL Database:** `localhost:5432`
 
 ### Environment Configuration
-Ensure your `.env` file contains the following configurations:
+Ensure your `.env` file contains the required configurations matching `.env.example`:
 ```env
-POSTGRES_DB=rag_assistant
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/rag_assistant
+DB_NAME=ragdb
+DB_USER=rag
+DB_PASSWORD=rag
+SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ragdb
 ```
 
 ### CI/CD Pipeline
