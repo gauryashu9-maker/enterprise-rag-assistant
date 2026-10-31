@@ -72,7 +72,13 @@ public class DocumentService {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
-            throw new IOException("Failed to extract text from PDF.", e);
+            // The bytes are already in memory, so a parse failure here means
+            // the uploaded PDF itself is unreadable. Report it as a client
+            // error (400), not a server error (500).
+            throw new IllegalArgumentException(
+                    "The PDF could not be read. "
+                            + "It may be corrupted or password-protected.",
+                    e);
         }
     }
 }

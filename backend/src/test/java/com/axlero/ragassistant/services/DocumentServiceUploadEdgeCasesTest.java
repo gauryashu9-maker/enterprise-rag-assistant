@@ -3,7 +3,6 @@ package com.axlero.ragassistant.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -155,17 +154,16 @@ class DocumentServiceUploadEdgeCasesTest {
     }
 
     @Test
-    void corruptPdfWithValidHeaderFailsWithIoException() {
+    void rejectsCorruptPdfWithValidHeaderAsBadRequest() {
         MockMultipartFile corrupt = file(
                 "corrupt.pdf",
                 "application/pdf",
                 "%PDF-1.4\nthis is not a real pdf body"
                         .getBytes(StandardCharsets.UTF_8));
 
-        IOException thrown = assertThrows(
-                IOException.class,
-                () -> documentService.extractText(corrupt));
-
-        assertEquals("Failed to extract text from PDF.", thrown.getMessage());
+        assertEquals(
+                "The PDF could not be read. "
+                        + "It may be corrupted or password-protected.",
+                rejectionMessage(corrupt));
     }
 }
