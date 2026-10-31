@@ -89,3 +89,35 @@ Controllers take/return DTO Records and contain no business logic. Services hold
 - **Backend**: Spring Boot 3 running on port 8080 (Java 21).
 - **Frontend**: Vite + React running on port 5173 (Node.js 20+ required).
 - **PowerShell Note**: If script execution is restricted on Windows, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+## DevOps & Local Environment Setup
+
+### Prerequisites
+- Docker & Docker Compose
+- Java 21 & Maven (for local backend development)
+- Node.js 20 & npm (for local frontend development)
+
+### Running Full-Stack via Docker Compose
+To build and spin up PostgreSQL, Spring Boot backend, and React frontend simultaneously:
+
+```bash
+docker-compose up --build -d
+```
+
+### Services & Port Mappings
+- **Frontend Application:** `http://localhost:3000`
+- **Backend API:** `http://localhost:8080`
+- **PostgreSQL Database:** `localhost:5432`
+
+### Environment Configuration
+Ensure your `.env` file contains the following configurations:
+```env
+POSTGRES_DB=rag_assistant
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/rag_assistant
+```
+
+### CI/CD Pipeline
+- Automated build and test pipeline configured via GitHub Actions (`.github/workflows/ci.yml`).
+- Triggers automatically on push and pull requests to `main`.

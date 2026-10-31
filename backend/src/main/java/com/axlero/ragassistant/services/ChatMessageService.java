@@ -15,8 +15,10 @@ import org.springframework.stereotype.Service;
 import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.dto.ChatMessageResponse;
 import com.axlero.ragassistant.dto.RagAnswer;
+import com.axlero.ragassistant.dto.RagStreamEvent;
 import com.axlero.ragassistant.dto.SendChatMessageResponse;
 import com.axlero.ragassistant.entities.ChatMessageRole;
+import reactor.core.publisher.Flux;
 
 @Service
 public class ChatMessageService {
@@ -87,6 +89,21 @@ public class ChatMessageService {
                 unpersistedUserMessage,
                 unpersistedAssistantMessage,
                 ragAnswer.citations());
+    }
+
+    public Flux<RagStreamEvent> streamMessage(
+            UUID sessionId, String question, AuthenticatedUser user) {
+        Objects.requireNonNull(user, "User must not be null");
+        Objects.requireNonNull(sessionId, "Session ID must not be null");
+        Objects.requireNonNull(question, "Question must not be null");
+
+        // 1. Verify session ownership synchronously before returning the Flux
+        chatMessageStorageService.validateOwnership(sessionId, user.id());
+
+        // 2. Stream answer from RAG and record when done
+        Flux<RagStreamEvent> stream = ragService.answerStream(question, user.id());
+        return StreamedAnswerRecorder.recordWhenDone(stream, answer ->
+                persistMessagesWithRetry(sessionId, user.id(), question, answer));
     }
 
     private Optional<ChatMessageStorageService.PersistedMessagePair> persistMessagesWithRetry(

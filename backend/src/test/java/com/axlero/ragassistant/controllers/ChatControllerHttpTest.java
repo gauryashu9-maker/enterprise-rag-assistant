@@ -18,6 +18,7 @@ import com.axlero.ragassistant.services.ChatConversationQueryService;
 import com.axlero.ragassistant.services.ChatMessageService;
 import com.axlero.ragassistant.services.ChatSessionService;
 import com.axlero.ragassistant.services.JwtService;
+import com.axlero.ragassistant.dto.RagStreamEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -28,6 +29,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import reactor.core.publisher.Flux;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -458,6 +461,100 @@ class ChatControllerHttpTest {
                 .andExpect(jsonPath("$.assistantMessage.content", equalTo(answer)))
                 .andExpect(jsonPath("$.citations", hasSize(1)))
                 .andExpect(jsonPath("$.citations[0].documentName", equalTo("handbook.pdf")));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 6. POST /api/chat/sessions/{id}/messages/stream (SSE)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void streamMessageReturns200TextEventStreamWithEvents() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+        String question = "Tell me about RAG";
+
+        when(chatMessageService.streamMessage(eq(sessionId), eq(question), userWithId(userId)))
+                .thenReturn(Flux.just(
+                        RagStreamEvent.token("RAG stands for "),
+                        RagStreamEvent.token("Retrieval-Augmented Generation."),
+                        RagStreamEvent.done()
+                ));
+
+        MvcResult result = mockMvc.perform(post("/api/chat/sessions/{id}/messages/stream", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + question + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM))
+                .andReturn();
+
+        String responseBody = result.getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(responseBody)
+                .contains("event:token")
+                .contains("event:done")
+                .contains("Retrieval-Augmented Generation.");
+
+        verify(chatMessageService).streamMessage(eq(sessionId), eq(question), userWithId(userId));
+    }
+
+    @Test
+    void streamMessageWithNoTokenReturns401ProblemDetail() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages/stream", sessionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hello\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Unauthorized")))
+                .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId + "/messages/stream")));
+
+        verify(chatMessageService, never()).streamMessage(any(), any(), any());
+    }
+
+    @Test
+    void streamMessageWhenSessionNotFoundReturns404ProblemDetail() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+        String question = "Hello?";
+
+        when(chatMessageService.streamMessage(eq(sessionId), eq(question), userWithId(userId)))
+                .thenThrow(new ResourceNotFoundException("Conversation not found"));
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages/stream", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"" + question + "\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Resource not found")))
+                .andExpect(jsonPath("$.status", equalTo(404)))
+                .andExpect(jsonPath("$.detail", equalTo("Conversation not found")))
+                .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId + "/messages/stream")));
+
+        verify(chatMessageService).streamMessage(eq(sessionId), eq(question), userWithId(userId));
+    }
+
+    @Test
+    void streamMessageWithBlankMessageReturns400ProblemDetail() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+
+        mockMvc.perform(post("/api/chat/sessions/{id}/messages/stream", sessionId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Validation failed")))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.instance", equalTo("/api/chat/sessions/" + sessionId + "/messages/stream")));
+
+        verify(chatMessageService, never()).streamMessage(any(), any(), any());
     }
 
     // ──────────────────────────────────────────────────────────────────────────
