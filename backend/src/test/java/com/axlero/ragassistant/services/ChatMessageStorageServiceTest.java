@@ -110,6 +110,49 @@ class ChatMessageStorageServiceTest {
                 .hasMessage("Conversation not found");
     }
 
+    @Test
+    void constructorRejectsNullRepository() {
+        assertThatThrownBy(() -> new ChatMessageStorageService(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("ChatSessionRepository must not be null");
+    }
+
+    @Test
+    void validateOwnershipRejectsNullArguments() {
+        UUID sessionId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> storageService.validateOwnership(null, userId))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Session ID must not be null");
+
+        assertThatThrownBy(() -> storageService.validateOwnership(sessionId, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("User ID must not be null");
+    }
+
+    @Test
+    void appendMessagePairRejectsNullArguments() {
+        UUID sessionId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> storageService.appendMessagePair(null, userId, "Q", "A"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Session ID must not be null");
+
+        assertThatThrownBy(() -> storageService.appendMessagePair(sessionId, null, "Q", "A"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("User ID must not be null");
+
+        assertThatThrownBy(() -> storageService.appendMessagePair(sessionId, userId, null, "A"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("User question must not be null");
+
+        assertThatThrownBy(() -> storageService.appendMessagePair(sessionId, userId, "Q", null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("Assistant answer must not be null");
+    }
+
     private void setId(ChatSession session, UUID id) {
         try {
             Field idField = ChatSession.class.getDeclaredField("id");

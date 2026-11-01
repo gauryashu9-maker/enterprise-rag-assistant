@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -104,6 +105,17 @@ class GlobalExceptionHandlerHttpTest {
                 .andExpect(content().string(not(containsString("JsonParseException"))))
                 .andExpect(content().string(not(containsString("JsonMappingException"))))
                 .andExpect(content().string(not(containsString("HttpMessageNotReadableException"))));
+    }
+
+    @Test
+    void returnsBadRequestProblemForMissingRequiredRequestParam() throws Exception {
+        mockMvc.perform(get("/probe/missing-param"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Bad request")))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.detail", equalTo("Required parameter 'query' is missing")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/missing-param")));
     }
 
     @Test
@@ -254,6 +266,10 @@ class GlobalExceptionHandlerHttpTest {
         @GetMapping(value = "/acceptable", produces = MediaType.APPLICATION_JSON_VALUE)
         ValidRequest acceptable() {
             return new ValidRequest("ok");
+        }
+
+        @GetMapping("/missing-param")
+        void missingParam(@RequestParam("query") String query) {
         }
 
         @GetMapping("/resource-not-found")

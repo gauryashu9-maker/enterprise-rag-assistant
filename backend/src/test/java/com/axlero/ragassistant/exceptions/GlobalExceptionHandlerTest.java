@@ -16,6 +16,7 @@ import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -72,6 +73,48 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getDetail()).isEqualTo("Failed to convert request parameter");
         assertThat(problem.getDetail()).doesNotContain("invalid-uuid");
         assertThat(problem.getInstance()).hasToString("/api/documents/invalid-uuid");
+    }
+
+    @Test
+    void mapsMissingServletRequestParameterToBadRequestProblem() {
+        MissingServletRequestParameterException exception =
+                new MissingServletRequestParameterException("file", "MultipartFile");
+
+        ProblemDetail problem = handler.handleMissingServletRequestParameter(
+                exception, request("/api/documents/upload"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Bad request");
+        assertThat(problem.getDetail()).isEqualTo("Required parameter 'file' is missing");
+        assertThat(problem.getInstance()).hasToString("/api/documents/upload");
+    }
+
+    @Test
+    void mapsMissingServletRequestParameterWithNullNameToGenericDetail() {
+        MissingServletRequestParameterException exception =
+                new MissingServletRequestParameterException(null, "String");
+
+        ProblemDetail problem = handler.handleMissingServletRequestParameter(
+                exception, request("/probe/missing-param"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Bad request");
+        assertThat(problem.getDetail()).isEqualTo("Required request parameter is missing");
+        assertThat(problem.getInstance()).hasToString("/probe/missing-param");
+    }
+
+    @Test
+    void mapsMissingServletRequestParameterWithBlankNameToGenericDetail() {
+        MissingServletRequestParameterException exception =
+                new MissingServletRequestParameterException("   ", "String");
+
+        ProblemDetail problem = handler.handleMissingServletRequestParameter(
+                exception, request("/probe/missing-param"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Bad request");
+        assertThat(problem.getDetail()).isEqualTo("Required request parameter is missing");
+        assertThat(problem.getInstance()).hasToString("/probe/missing-param");
     }
 
     @Test
