@@ -121,3 +121,12 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/rag_assistant
 ### CI/CD Pipeline
 - Automated build and test pipeline configured via GitHub Actions (`.github/workflows/ci.yml`).
 - Triggers automatically on push and pull requests to `main`.
+## RAG engine
+
+Documents are split into chunks and embedded into pgvector. Questions are answered only from the caller's own documents, with citations.
+
+- Request flow, user isolation and known limits: [docs/rag-defense-notes.md](docs/rag-defense-notes.md)
+- Retrieval tuning results: [docs/rag-tuning.md](docs/rag-tuning.md)
+- JSON shapes of every endpoint: [docs/api-contract.md](docs/api-contract.md)
+
+Settings (defaults shown, each can be overridden in `.env`): `app.rag.top-k=5`, `app.rag.similarity-threshold=0.55`, `app.rag.relative-cutoff=0.85`. The embedding model and `EMBEDDING_DIMENSIONS` must always match, and changing the model means re-embedding the documents.
