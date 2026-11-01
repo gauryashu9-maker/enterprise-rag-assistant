@@ -10,7 +10,6 @@ const formatDate = (value) => {
   return date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : '-'
 }
 
-// History messages carry no citations, so they start with an empty list.
 const toItem = (message) => ({
   key: message.id ?? nextKey(),
   role: message.role,
@@ -28,6 +27,9 @@ export default function Chat() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const endRef = useRef(null)
+  
+  // FIX 1: useRef MUST be inside the component
+  const activeSessionReqRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
@@ -55,14 +57,21 @@ export default function Chat() {
     setActiveId(id)
     setError('')
     setLoadingConversation(true)
+    activeSessionReqRef.current = id; 
     try {
-      const conversation = await chatApi.getConversation(id)
-      setItems(conversation.messages.map(toItem))
+      const conversation = await chatApi.getConversation(id);
+      if (activeSessionReqRef.current === id) { 
+        setItems(conversation.messages.map(toItem));
+      }
     } catch (e) {
-      setError(errorMessage(e))
-      setItems([])
+      if (activeSessionReqRef.current === id){
+        setError(errorMessage(e));
+        setItems([]);
+      }
     } finally {
-      setLoadingConversation(false)
+      if (activeSessionReqRef.current === id){
+        setLoadingConversation(false);
+      }
     }
   }
 
@@ -103,7 +112,6 @@ export default function Chat() {
         },
       ])
     } catch (e) {
-      // Take the question back so the user can send it again.
       setItems((current) => current.filter((item) => item.key !== userKey))
       setInput(question)
       setError(errorMessage(e))
@@ -174,9 +182,14 @@ export default function Chat() {
             onChange={(event) => setInput(event.target.value)}
             placeholder="Ask about your documents"
             aria-label="Your question"
-            disabled={sending}
+            // FIX 2: Added loadingConversation to disabled
+            disabled={sending || loadingConversation} 
           />
-          <button type="submit" disabled={sending || input.trim() === ''}>
+          <button 
+            type="submit" 
+            // FIX 2: Added loadingConversation to disabled
+            disabled={sending || loadingConversation || input.trim() === ''}
+          >
             Send
           </button>
         </form>
