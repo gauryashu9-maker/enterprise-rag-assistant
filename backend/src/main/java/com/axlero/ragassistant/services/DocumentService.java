@@ -29,15 +29,15 @@ public class DocumentService {
         }
 
         String filename = file.getOriginalFilename();
-        String contentType = file.getContentType();
+        String mediaType = mediaTypeOf(file.getContentType());
 
         boolean isTxt = filename != null
                 && filename.toLowerCase(Locale.ROOT).endsWith(".txt")
-                && "text/plain".equalsIgnoreCase(contentType);
+                && "text/plain".equalsIgnoreCase(mediaType);
 
         boolean isPdf = filename != null
                 && filename.toLowerCase(Locale.ROOT).endsWith(".pdf")
-                && "application/pdf".equalsIgnoreCase(contentType);
+                && "application/pdf".equalsIgnoreCase(mediaType);
 
         if (!isTxt && !isPdf) {
             throw new IllegalArgumentException(
@@ -80,5 +80,23 @@ public class DocumentService {
                             + "It may be corrupted or password-protected.",
                     e);
         }
+    }
+
+    /**
+     * Returns only the media type of a Content-Type header value, without
+     * parameters. For example "text/plain;charset=UTF-8" becomes "text/plain".
+     * Returns null when no content type was sent.
+     */
+    private static String mediaTypeOf(String contentType) {
+        if (contentType == null) {
+            return null;
+        }
+
+        int parametersStart = contentType.indexOf(';');
+        String mediaType = parametersStart >= 0
+                ? contentType.substring(0, parametersStart)
+                : contentType;
+
+        return mediaType.trim();
     }
 }
