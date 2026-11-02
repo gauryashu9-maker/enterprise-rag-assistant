@@ -3,7 +3,7 @@ import api from './axiosClient'
 // Mock mode stays ON until the document endpoints exist
 // (planned in docs/api-contract.md, not implemented yet).
 // Set VITE_USE_MOCK_API=false in your local .env to try the real call.
-const USE_MOCK = import.meta.env.VITE_USE_MOCK_API !== 'false'
+const USE_MOCK = import.meta.env.VITE_USE_MOCK_API === 'true'
 
 // Same shape as DocumentResponse in docs/api-contract.md
 const MOCK_DOCUMENTS = [
