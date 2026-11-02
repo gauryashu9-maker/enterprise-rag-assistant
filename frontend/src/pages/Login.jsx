@@ -16,6 +16,8 @@ export default function Login() {
     try {
       const data = await login(email, password)
       localStorage.setItem('token', data.token)
+      localStorage.setItem('email', data.email)
+      localStorage.setItem('role', data.role)
       navigate('/chat')
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Login failed')

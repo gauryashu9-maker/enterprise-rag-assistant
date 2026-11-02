@@ -7,7 +7,8 @@ const api = axios.create({
 // Runs before every request: attach the JWT if we have one
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
-  if (token) {
+  const isAuthCall = config.url?.includes('/auth/')
+  if (token && !isAuthCall) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
