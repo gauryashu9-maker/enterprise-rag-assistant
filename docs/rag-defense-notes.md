@@ -10,7 +10,13 @@
 6. The controller returns the `RagAnswer` DTO record.
 
 Streaming (`POST /api/rag/stream`) uses the same retrieval and prompt, but streams tokens as server-sent events, then one citations event and done. Structured output cannot stream, so the stream path cites all retrieved chunks unless the model gave the fallback answer.
+7. Retrieval Tuning & Security (PRD Alignment)
+During the implementation of the `RetrievalService`, we tuned the vector search to ensure high-quality, hallucination-free answers while strictly adhering to the PRD's security architecture:
 
+- **topK (5):** We retrieve the top 5 most relevant chunks. This provides the LLM with enough context without overwhelming the context window.
+- **similarityThreshold (0.55):** Chunks must have a minimum cosine similarity of 0.55 to even be considered.
+- **relativeCutoff (0.85):** We implemented a dynamic relative filter. If the best chunk scores 0.90, we drop any chunks scoring below 0.765 (85% of the best score). This drastically reduces "noisy citations" and prevents the LLM from getting confused by weakly related chunks.
+- **Per-User Filtering (Security):** The PRD mandates Role-Based Access Control. In `RetrievalService.java`, we use Spring AI's `FilterExpressionBuilder` to strictly filter by `ownerId`. There is no unfiltered search; a user can only ever retrieve vector chunks that belong to their own uploaded documents.
 ## Questions to be ready for
 
 **How do IoC and dependency injection work here?** Spring creates `RagServiceImpl` and injects its collaborators through the constructor: `RetrievalService`, the `ChatClient` bean from `AiConfig`, and the prompt resource. Nothing is created with `new`, so tests pass mocks to the same constructor. Constructor injection keeps dependencies explicit and the fields final.

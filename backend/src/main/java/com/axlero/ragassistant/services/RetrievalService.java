@@ -40,6 +40,7 @@ public class RetrievalService {
     /** Searches only the chunks whose ownerId metadata equals {@code ownerId}. There is no unfiltered search. */
     public List<Document> retrieve(String question, UUID ownerId) {
         Objects.requireNonNull(ownerId, "ownerId is required: retrieval is always scoped to one user");
+        @SuppressWarnings("null")
         SearchRequest request = SearchRequest.builder()
                 .query(question)
                 .topK(topK)
@@ -60,7 +61,9 @@ public class RetrievalService {
     }
 
     /** Keeps only chunks scoring within `ratio` of the best chunk. Chunks without a score are kept. */
+    @SuppressWarnings("null")
     static List<Document> keepNearBest(List<Document> chunks, double ratio) {
+        @SuppressWarnings("null")
         double best = chunks.stream()
                 .map(Document::getScore)
                 .filter(Objects::nonNull)

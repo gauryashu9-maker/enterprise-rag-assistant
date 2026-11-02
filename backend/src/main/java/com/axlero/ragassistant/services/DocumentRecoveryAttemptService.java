@@ -39,7 +39,8 @@ public class DocumentRecoveryAttemptService {
         this.vectorStore = vectorStore;
     }
 
-    @Transactional
+    @SuppressWarnings("null")
+@Transactional
     public RuntimeException process(UUID documentId) {
         DocumentRecord record = documentRepository
                 .findByIdForUpdate(documentId)
@@ -81,10 +82,11 @@ public class DocumentRecoveryAttemptService {
             // Remove partial vectors from an earlier attempt first.
             vectorStore.delete(filter);
 
+            @SuppressWarnings("null")
             List<Document> documents = staged.stream()
                     .map(chunk -> new Document(
                             chunk.getContent(),
-                            chunk.getContent(),
+                        //     chunk.getContent(),
                             Map.of(
                                     ChunkMetadata.DOCUMENT_ID,
                                     documentId.toString(),
