@@ -61,24 +61,14 @@ public class DocumentController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadDocument(
+    public ResponseEntity<DocumentResponse> uploadDocument(
             @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal AuthenticatedUser user) {
-        try {
-            DocumentRecord record =
-                    documentIngestionService.ingest(file, user.id());
+            @AuthenticationPrincipal AuthenticatedUser user) throws IOException {
+        DocumentRecord record =
+                documentIngestionService.ingest(file, user.id());
 
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(DocumentResponse.fromEntity(record));
-
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body("Validation Error: " + e.getMessage());
-
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError()
-                    .body("Error reading file content.");
-        }
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(DocumentResponse.fromEntity(record));
     }
 
     @GetMapping

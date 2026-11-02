@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.UUID;
@@ -223,6 +225,39 @@ class GlobalExceptionHandlerHttpTest {
     }
 
     @Test
+    void returnsBadRequestProblemForIllegalArgument() throws Exception {
+        mockMvc.perform(get("/probe/illegal-argument"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Bad request")))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.detail", equalTo("Invalid argument provided")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/illegal-argument")));
+    }
+
+    @Test
+    void returnsPayloadTooLargeProblemForMaxUploadSizeExceeded() throws Exception {
+        mockMvc.perform(get("/probe/max-upload-size"))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Payload too large")))
+                .andExpect(jsonPath("$.status", equalTo(413)))
+                .andExpect(jsonPath("$.detail", equalTo("Maximum upload size of 25MB exceeded")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/max-upload-size")));
+    }
+
+    @Test
+    void returnsBadRequestProblemForMissingServletRequestPart() throws Exception {
+        mockMvc.perform(get("/probe/missing-part"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Bad request")))
+                .andExpect(jsonPath("$.status", equalTo(400)))
+                .andExpect(jsonPath("$.detail", equalTo("Required part 'file' is not present")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/missing-part")));
+    }
+
+    @Test
     void returnsInternalServerErrorProblemForUnexpectedFailure() throws Exception {
         Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
         ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
@@ -300,6 +335,21 @@ class GlobalExceptionHandlerHttpTest {
         @PostMapping("/duplicate-email")
         void duplicateEmail() {
             throw new EmailAlreadyRegisteredException();
+        }
+
+        @GetMapping("/illegal-argument")
+        void illegalArgument() {
+            throw new IllegalArgumentException("Invalid argument provided");
+        }
+
+        @GetMapping("/max-upload-size")
+        void maxUploadSize() {
+            throw new MaxUploadSizeExceededException(25 * 1024 * 1024);
+        }
+
+        @GetMapping("/missing-part")
+        void missingPart() throws MissingServletRequestPartException {
+            throw new MissingServletRequestPartException("file");
         }
 
         @GetMapping("/unexpected")

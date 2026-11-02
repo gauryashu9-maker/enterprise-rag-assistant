@@ -18,6 +18,9 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
@@ -129,6 +132,58 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getTitle()).isEqualTo("Malformed request");
         assertThat(problem.getDetail()).isEqualTo("Request body is missing or invalid");
         assertThat(problem.getInstance()).hasToString("/probe/validation");
+    }
+
+    @Test
+    void mapsIllegalArgumentExceptionToBadRequestProblem() {
+        IllegalArgumentException exception = new IllegalArgumentException("The file must not be empty.");
+
+        ProblemDetail problem = handler.handleIllegalArgument(
+                exception, request("/api/documents/upload"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Bad request");
+        assertThat(problem.getDetail()).isEqualTo("The file must not be empty.");
+        assertThat(problem.getInstance()).hasToString("/api/documents/upload");
+    }
+
+    @Test
+    void mapsMaxUploadSizeExceededToPayloadTooLargeProblem() {
+        MaxUploadSizeExceededException exception = new MaxUploadSizeExceededException(25 * 1024 * 1024);
+
+        ProblemDetail problem = handler.handleMaxUploadSizeExceeded(
+                exception, request("/api/documents/upload"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE.value());
+        assertThat(problem.getTitle()).isEqualTo("Payload too large");
+        assertThat(problem.getDetail()).isEqualTo("Maximum upload size of 25MB exceeded");
+        assertThat(problem.getInstance()).hasToString("/api/documents/upload");
+    }
+
+    @Test
+    void mapsMissingServletRequestPartToBadRequestProblem() {
+        MissingServletRequestPartException exception = new MissingServletRequestPartException("file");
+
+        ProblemDetail problem = handler.handleMultipartException(
+                exception, request("/api/documents/upload"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Bad request");
+        assertThat(problem.getDetail()).isEqualTo("Required part 'file' is not present");
+        assertThat(problem.getInstance()).hasToString("/api/documents/upload");
+    }
+
+    @Test
+    void mapsGenericMultipartExceptionToBadRequestProblem() {
+        MultipartException exception = new MultipartException("Failed to parse multipart request");
+
+        ProblemDetail problem = handler.handleMultipartException(
+                exception, request("/api/documents/upload"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getTitle()).isEqualTo("Bad request");
+        assertThat(problem.getDetail()).isEqualTo("Current request is not a valid multipart request");
+        assertThat(problem.getInstance()).hasToString("/api/documents/upload");
     }
 
     @Test
