@@ -10,3 +10,26 @@ This runbook outlines the verification and demonstration flow for the Enterprise
 To build and spin up PostgreSQL, Spring Boot backend, and React frontend simultaneously:
 ```bash
 docker compose up -d --build
+```
+
+## 3. Health & Status Checks
+Verify all container services are running:
+```bash
+docker compose ps
+```
+
+Expected status:
+- `rag-postgres`: Healthy on port 5432
+- `rag-backend`: Up on port 8080
+- `rag-frontend`: Up on port 80
+
+## 4. Verification Endpoints
+- **Frontend UI**: Open `http://localhost:80` to verify the React client and authentication landing page.
+- **OpenAPI / Swagger Documentation**: Open `http://localhost:8080/swagger-ui/index.html` to inspect active REST endpoints.
+- **Spring Security Verification**: Access `http://localhost:8080/api/health` — returns `401 Unauthorized` without a JWT bearer token, confirming active security filters.
+
+## 5. Teardown
+To cleanly stop containers and free system resources:
+```bash
+docker compose down
+```
