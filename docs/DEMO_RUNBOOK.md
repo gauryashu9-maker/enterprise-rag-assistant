@@ -26,8 +26,8 @@ Expected status:
 ## 4. Verification Endpoints
 - **Frontend UI**: Open `http://localhost:80` to verify the React client and authentication landing page.
 - **OpenAPI / Swagger Documentation**: Open `http://localhost:8080/swagger-ui/index.html` to inspect active REST endpoints.
-- **Spring Security Verification**: Access `http://localhost:8080/api/health` — returns `401 Unauthorized` without a JWT bearer token, confirming active security filters.
-
+- **Backend Health Check**: Access `http://localhost:8080/actuator/health` to confirm Spring Boot Actuator status (public endpoint).
+- **Spring Security Verification**: Access `http://localhost:8080/api/ai/ping` — returns `401 Unauthorized` without a JWT bearer token, confirming active security filters.
 ## 5. Teardown
 To cleanly stop containers and free system resources:
 ```bash
