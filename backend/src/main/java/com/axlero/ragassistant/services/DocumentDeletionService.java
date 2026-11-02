@@ -46,7 +46,16 @@ public class DocumentDeletionService {
                     .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
         }
 
-        // 2. Delete vector chunks first using VectorStore delete-by-filter on documentId
+        // 2. Lock the row before touching the vector store. The recovery worker
+        //    holds the same lock while it re-indexes this document, so we wait
+        //    for it to finish. Once we hold the lock the worker cannot add
+        //    vectors again; after we commit it finds no record and does nothing.
+        //    If another request deleted the document in the meantime, the row is
+        //    gone and we report it as not found.
+        DocumentRecord locked = documentRecordRepository.findByIdForUpdate(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
+
+        // 3. Delete vector chunks first using VectorStore delete-by-filter on documentId
         try {
             Filter.Expression filter = new FilterExpressionBuilder()
                     .eq(ChunkMetadata.DOCUMENT_ID, documentId.toString())
@@ -57,8 +66,8 @@ public class DocumentDeletionService {
             throw new ServiceUnavailableException("Failed to delete vector chunks for document", exception);
         }
 
-        // 3. Delete database document record only after successful vector deletion
-        documentRecordRepository.delete(document);
+        // 4. Delete database document record only after successful vector deletion
+        documentRecordRepository.delete(locked);
         log.info("Successfully deleted document {} and its vector chunks", documentId);
     }
 }
