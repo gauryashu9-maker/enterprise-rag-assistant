@@ -9,6 +9,7 @@ export async function streamAnswer({
   question,
   token,
   path = '/rag/stream',
+  bodyField ='question',
   baseUrl = '/api',
   signal,
   fetchImpl = (...args) => fetch(...args),
@@ -33,7 +34,7 @@ export async function streamAnswer({
         Accept: 'text/event-stream',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({  [bodyField]: question }),
       signal,
     })
   } catch (error) {

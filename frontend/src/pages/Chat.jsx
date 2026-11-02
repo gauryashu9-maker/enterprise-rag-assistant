@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import chatApi, { errorMessage } from '../api/chatApi.js'
+import { streamTarget } from '../api/chatConfig.js'
+import { streamAnswer } from '../api/streamClient.js'
 import './Chat.css'
 
 let localCounter = 0
@@ -28,7 +30,7 @@ export default function Chat() {
   const [error, setError] = useState('')
   const endRef = useRef(null)
   
-  // FIX 1: useRef MUST be inside the component
+  // Race condition guard
   const activeSessionReqRef = useRef(null)
 
   useEffect(() => {
@@ -92,31 +94,62 @@ export default function Chat() {
   async function send(event) {
     event.preventDefault()
     const question = input.trim()
-    if (!question || sending) return
+    if (!question || sending || loadingConversation) return
+
     const userKey = nextKey()
+    const assistantKey = nextKey()
+    
+    // Helper to update the streaming assistant message
+    const patchAssistant = (change) =>
+      setItems((current) => current.map((item) => (item.key === assistantKey ? change(item) : item)))
+
+    let failure = null
+    let received = false
     setError('')
     setSending(true)
+
     try {
       const sessionId = activeId ?? (await newChat())
       if (!sessionId) return
       setInput('')
-      setItems((current) => [...current, { key: userKey, role: 'USER', content: question, citations: [] }])
-      const result = await chatApi.sendMessage(sessionId, question)
+
+      // Add User Message and Empty Assistant Message (which will be filled by the stream)
       setItems((current) => [
         ...current,
-        {
-          key: result.assistantMessage?.id ?? nextKey(),
-          role: 'ASSISTANT',
-          content: result.assistantMessage?.content ?? '',
-          citations: result.citations,
-        },
+        { key: userKey, role: 'USER', content: question, citations: [] },
+        { key: assistantKey, role: 'ASSISTANT', content: '', citations: [] },
       ])
+
+      // Call the Streaming API
+      await streamAnswer({
+        question,
+        token: localStorage.getItem('token'),
+        ...streamTarget(sessionId),
+        onToken: (text) => {
+          received = true
+          patchAssistant((item) => ({ ...item, content: item.content + text }))
+        },
+        onCitations: (citations) => patchAssistant((item) => ({ ...item, citations })),
+        onError: (e) => { failure = e },
+      })
     } catch (e) {
-      setItems((current) => current.filter((item) => item.key !== userKey))
-      setInput(question)
-      setError(errorMessage(e))
+      failure = e
     } finally {
       setSending(false)
+    }
+
+    if (failure) {
+      if (failure.status === 401) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+        return
+      }
+      if (!received) {
+        // If nothing arrived, remove the messages so they can try again
+        setItems((current) => current.filter((item) => item.key !== userKey && item.key !== assistantKey))
+        setInput(question)
+      }
+      setError(errorMessage(failure))
     }
   }
 
@@ -182,12 +215,10 @@ export default function Chat() {
             onChange={(event) => setInput(event.target.value)}
             placeholder="Ask about your documents"
             aria-label="Your question"
-            // FIX 2: Added loadingConversation to disabled
             disabled={sending || loadingConversation} 
           />
           <button 
             type="submit" 
-            // FIX 2: Added loadingConversation to disabled
             disabled={sending || loadingConversation || input.trim() === ''}
           >
             Send
