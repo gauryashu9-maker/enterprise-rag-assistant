@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -49,6 +50,9 @@ class DocumentIngestionRepositoriesTest {
 
     @Autowired
     private DocumentIngestionChunkRepository chunks;
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     private DocumentRecord saveDocument(
             DocumentStatus status, Instant nextRetryAt) {
@@ -174,6 +178,50 @@ class DocumentIngestionRepositoriesTest {
 
         assertThat(chunks.findAllByDocumentIdOrderByChunkIndex(documentId))
                 .isEmpty();
+        assertThat(chunks.findAllByDocumentIdOrderByChunkIndex(otherDocumentId))
+                .extracting(DocumentIngestionChunk::getContent)
+                .containsExactly("other");
+    }
+
+    // ---- ON DELETE CASCADE from the V5 migration -----------------------------
+
+    @Test
+    void deletingADocumentAlsoDeletesItsStagedChunks() {
+        DocumentRecord document =
+                saveDocument(DocumentStatus.PROCESSING, null);
+        UUID documentId = document.getId();
+
+        chunks.saveAll(List.of(
+                new DocumentIngestionChunk(documentId, 0, "first"),
+                new DocumentIngestionChunk(documentId, 1, "second")));
+        chunks.flush();
+
+        documentRecords.delete(document);
+        documentRecords.flush();
+        entityManager.clear();
+
+        assertThat(documentRecords.findById(documentId)).isEmpty();
+        assertThat(chunks.findAllByDocumentIdOrderByChunkIndex(documentId))
+                .isEmpty();
+    }
+
+    @Test
+    void deletingADocumentKeepsStagedChunksOfOtherDocuments() {
+        DocumentRecord document =
+                saveDocument(DocumentStatus.FAILED, Instant.now());
+        UUID documentId = document.getId();
+        UUID otherDocumentId =
+                saveDocument(DocumentStatus.PROCESSING, null).getId();
+
+        chunks.saveAll(List.of(
+                new DocumentIngestionChunk(documentId, 0, "first"),
+                new DocumentIngestionChunk(otherDocumentId, 0, "other")));
+        chunks.flush();
+
+        documentRecords.delete(document);
+        documentRecords.flush();
+        entityManager.clear();
+
         assertThat(chunks.findAllByDocumentIdOrderByChunkIndex(otherDocumentId))
                 .extracting(DocumentIngestionChunk::getContent)
                 .containsExactly("other");
