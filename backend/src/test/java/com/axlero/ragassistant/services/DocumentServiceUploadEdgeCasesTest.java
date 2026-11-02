@@ -117,6 +117,49 @@ class DocumentServiceUploadEdgeCasesTest {
         assertEquals("hello", text);
     }
 
+    @Test
+    void acceptsTxtWhenContentTypeHasCharsetParameter() throws Exception {
+        String text = documentService.extractText(file(
+                "notes.txt",
+                "text/plain;charset=UTF-8",
+                "hello".getBytes(StandardCharsets.UTF_8)));
+
+        assertEquals("hello", text);
+    }
+
+    @Test
+    void acceptsTxtWhenContentTypeHasSpacesAndMixedCaseParameter()
+            throws Exception {
+        String text = documentService.extractText(file(
+                "notes.txt",
+                "Text/Plain ; Charset=utf-8",
+                "hello".getBytes(StandardCharsets.UTF_8)));
+
+        assertEquals("hello", text);
+    }
+
+    @Test
+    void rejectsTxtWhenMediaTypeDiffersEvenWithParameter() {
+        MockMultipartFile json = file(
+                "notes.txt",
+                "application/json;charset=UTF-8",
+                "hello".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(UNSUPPORTED_MESSAGE, rejectionMessage(json));
+    }
+
+    @Test
+    void acceptsPdfContentTypeWithParameterAndStillChecksTheHeader() {
+        // The content type check passes, so the request reaches the PDF
+        // header check and is rejected there, not as an unsupported type.
+        MockMultipartFile fake = file(
+                "fake.pdf",
+                "application/pdf; foo=bar",
+                "this is not a pdf".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals("Invalid PDF file.", rejectionMessage(fake));
+    }
+
     // ---- TXT content --------------------------------------------------------
 
     @Test
