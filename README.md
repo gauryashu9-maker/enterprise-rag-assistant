@@ -121,3 +121,28 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/rag_assistant
 ### CI/CD Pipeline
 - Automated build and test pipeline configured via GitHub Actions (`.github/workflows/ci.yml`).
 - Triggers automatically on push and pull requests to `main`.
+
+## Architecture
+
+The backend (`com.axlero.ragassistant`) follows a strict layered architecture:
+
+| Package | Responsibility |
+|---|---|
+| `controllers` | REST controllers: read the request, pass DTOs to services, return DTOs. No business logic |
+| `services` | Business logic and transaction boundaries (`@Transactional`) |
+| `repositories` | Spring Data JPA interfaces |
+| `entities` | JPA entities, one per database table |
+| `dto` | Java Records that are exactly the JSON sent to and returned to the client |
+| `exceptions` | One `@RestControllerAdvice` returning RFC 7807 `ProblemDetail` errors |
+| `config` | Spring configuration (security, AI client, CORS, OpenAPI) |
+
+**DTO pattern:** controllers never return JPA entities. Entities are mapped to records, so the JSON contract stays explicit and stable, internals do not leak, and lazy loading cannot fail during serialization.
+
+**Dependency injection:** Spring creates the beans and injects collaborators through constructors (for example `RagServiceImpl` receives its retrieval service and `ChatClient`), so tests can pass mocks to the same constructors.
+
+## Database and credentials layout
+
+- PostgreSQL with pgvector runs in Docker (`docker compose up -d`). Defaults: database `ragdb`, user `rag`, password `rag`, port `5432`. All can be overridden in `.env`.
+- `.env` is git-ignored and never committed. Copy `.env.example` and set: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `OPENAI_API_KEY` (any word when using a local Ollama), `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` (must match the embedding model) and `JWT_SECRET` (Base64, for example `openssl rand -base64 48`).
+- The schema is managed by Flyway migrations in `backend/src/main/resources/db/migration`. Hibernate only validates it, so an entity change needs a new migration file.
+- API documentation: Swagger UI at `http://localhost:8080/swagger-ui/index.html` when the backend is running.
