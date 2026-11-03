@@ -25,6 +25,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.io.IOException;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -258,6 +259,20 @@ class GlobalExceptionHandlerHttpTest {
     }
 
     @Test
+    void returnsInternalServerErrorProblemForIOException() throws Exception {
+        mockMvc.perform(get("/probe/io-error"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Internal server error")))
+                .andExpect(jsonPath("$.status", equalTo(500)))
+                .andExpect(jsonPath("$.detail", equalTo("Failed to read file content")))
+                .andExpect(jsonPath("$.instance", equalTo("/probe/io-error")))
+                .andExpect(content().string(not(containsString("disk failure"))))
+                .andExpect(content().string(not(containsString("/var/data/document.pdf"))))
+                .andExpect(content().string(not(containsString("IOException"))));
+    }
+
+    @Test
     void returnsInternalServerErrorProblemForUnexpectedFailure() throws Exception {
         Logger logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
         ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
@@ -350,6 +365,11 @@ class GlobalExceptionHandlerHttpTest {
         @GetMapping("/missing-part")
         void missingPart() throws MissingServletRequestPartException {
             throw new MissingServletRequestPartException("file");
+        }
+
+        @GetMapping("/io-error")
+        void ioError() throws IOException {
+            throw new IOException("disk failure reading /var/data/document.pdf");
         }
 
         @GetMapping("/unexpected")

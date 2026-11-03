@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -183,6 +184,21 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(problem.getTitle()).isEqualTo("Bad request");
         assertThat(problem.getDetail()).isEqualTo("Current request is not a valid multipart request");
+        assertThat(problem.getInstance()).hasToString("/api/documents/upload");
+    }
+
+    @Test
+    void mapsIOExceptionToInternalServerErrorProblem() {
+        IOException exception = new IOException("Disk failure reading /secret/path/document.pdf");
+
+        ProblemDetail problem = handler.handleIOException(
+                exception, request("/api/documents/upload"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
+        assertThat(problem.getTitle()).isEqualTo("Internal server error");
+        assertThat(problem.getDetail()).isEqualTo("Failed to read file content");
+        assertThat(problem.getDetail()).doesNotContain("Disk failure");
+        assertThat(problem.getDetail()).doesNotContain("/secret/path");
         assertThat(problem.getInstance()).hasToString("/api/documents/upload");
     }
 

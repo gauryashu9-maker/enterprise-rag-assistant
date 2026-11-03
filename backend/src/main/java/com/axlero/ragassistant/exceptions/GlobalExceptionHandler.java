@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -176,6 +177,16 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, exception.getMessage());
         problem.setTitle("Email already registered");
+        return withInstance(problem, request);
+    }
+
+    @ExceptionHandler(IOException.class)
+    ProblemDetail handleIOException(
+            IOException exception, HttpServletRequest request) {
+        log.error("An I/O error occurred while processing request {}", request.getRequestURI(), exception);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read file content");
+        problem.setTitle("Internal server error");
         return withInstance(problem, request);
     }
 

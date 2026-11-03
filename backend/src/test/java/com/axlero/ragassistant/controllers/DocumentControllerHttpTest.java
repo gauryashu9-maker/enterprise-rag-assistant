@@ -22,6 +22,7 @@ import org.springframework.security.web.method.annotation.AuthenticationPrincipa
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -167,6 +168,27 @@ class DocumentControllerHttpTest {
                 .andExpect(jsonPath("$.title").value("Bad request"))
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.instance").value("/api/documents/upload"));
+    }
+
+    @Test
+    void returnsInternalServerErrorProblemWhenIngestionFailsWithIoException() throws Exception {
+        AuthenticatedUser user = user(Role.USER);
+        authenticate(user);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "handbook.pdf", "application/pdf", "%PDF-1.4 sample content".getBytes());
+
+        when(documentIngestionService.ingest(any(), eq(user.id())))
+                .thenThrow(new IOException("Disk read failure"));
+
+        mockMvc.perform(multipart("/api/documents/upload").file(file))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Internal server error"))
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail").value("Failed to read file content"))
+                .andExpect(jsonPath("$.instance").value("/api/documents/upload"));
+
+        verify(documentIngestionService).ingest(any(), eq(user.id()));
     }
 
     private void authenticate(AuthenticatedUser user) {
