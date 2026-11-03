@@ -192,7 +192,9 @@ export default function Chat() {
                     <li key={`${citation.documentName}-${citation.page}-${index}`}>
                       <strong>{citation.documentName}</strong>
                       {citation.page != null ? `, page ${citation.page}` : ''}
-                      <span className="chat-snippet">{citation.snippet}</span>
+                      <span className="chat-snippet">
+                      {citation.snippet.length > 10 ? citation.snippet.substring(0, 10) + '...' : citation.snippet}
+                      </span>
                     </li>
                   ))}
                 </ul>
