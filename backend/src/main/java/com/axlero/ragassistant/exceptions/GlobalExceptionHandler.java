@@ -16,8 +16,12 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -70,6 +74,39 @@ public class GlobalExceptionHandler {
                 ? "Required parameter '" + parameterName + "' is missing"
                 : "Required request parameter is missing";
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
+        problem.setTitle("Bad request");
+        return withInstance(problem, request);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ProblemDetail handleIllegalArgument(
+            IllegalArgumentException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, exception.getMessage());
+        problem.setTitle("Bad request");
+        return withInstance(problem, request);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ProblemDetail handleMaxUploadSizeExceeded(
+            MaxUploadSizeExceededException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.PAYLOAD_TOO_LARGE, "Maximum upload size of 25MB exceeded");
+        problem.setTitle("Payload too large");
+        return withInstance(problem, request);
+    }
+
+    @ExceptionHandler({MissingServletRequestPartException.class, MultipartException.class})
+    ProblemDetail handleMultipartException(
+            Exception exception, HttpServletRequest request) {
+        String detail;
+        if (exception instanceof MissingServletRequestPartException partEx) {
+            detail = "Required part '" + partEx.getRequestPartName() + "' is not present";
+        } else {
+            detail = "Current request is not a valid multipart request";
+        }
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, detail);
         problem.setTitle("Bad request");
         return withInstance(problem, request);
     }
@@ -140,6 +177,16 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, exception.getMessage());
         problem.setTitle("Email already registered");
+        return withInstance(problem, request);
+    }
+
+    @ExceptionHandler(IOException.class)
+    ProblemDetail handleIOException(
+            IOException exception, HttpServletRequest request) {
+        log.error("An I/O error occurred while processing request {}", request.getRequestURI(), exception);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read file content");
+        problem.setTitle("Internal server error");
         return withInstance(problem, request);
     }
 

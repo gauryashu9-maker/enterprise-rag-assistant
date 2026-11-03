@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,6 +19,7 @@ import com.axlero.ragassistant.config.CorsConfig;
 import com.axlero.ragassistant.config.SecurityConfig;
 import com.axlero.ragassistant.dto.AuthenticatedUser;
 import com.axlero.ragassistant.dto.DocumentResponse;
+import com.axlero.ragassistant.entities.DocumentRecord;
 import com.axlero.ragassistant.entities.DocumentStatus;
 import com.axlero.ragassistant.entities.Role;
 import com.axlero.ragassistant.exceptions.GlobalExceptionHandler;
@@ -38,6 +40,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -90,7 +93,7 @@ class DocumentSecurityIntegrationTest {
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("JWT_SECRET", () -> TEST_SECRET);
+        registry.add("app.security.jwt.secret", () -> TEST_SECRET);
     }
 
     @Autowired
@@ -320,6 +323,46 @@ class DocumentSecurityIntegrationTest {
                 .andExpect(jsonPath("$.instance", equalTo("/api/documents/" + docId)));
 
         verify(documentDeletionService, never()).deleteDocument(any(), any());
+    }
+
+    // ------------------------------------------------------------------------
+    // 12. Upload security tests
+    // ------------------------------------------------------------------------
+
+    @Test
+    void uploadWithNoTokenReturns401ProblemDetailWithCorrectInstance() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.pdf", "application/pdf", "%PDF-1.4 sample".getBytes());
+
+        mockMvc.perform(multipart("/api/documents/upload").file(file))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title", equalTo("Unauthorized")))
+                .andExpect(jsonPath("$.status", equalTo(401)))
+                .andExpect(jsonPath("$.instance", equalTo("/api/documents/upload")));
+
+        verify(documentIngestionService, never()).ingest(any(), any());
+    }
+
+    @Test
+    void authenticatedUserUploadsDocumentSuccessfully() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String token = jwtService.generateToken(userId, "user@example.com", Role.USER);
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "handbook.pdf", "application/pdf", "%PDF-1.4 sample".getBytes());
+        DocumentRecord record = new DocumentRecord(
+                "handbook.pdf", "application/pdf", file.getSize(), DocumentStatus.READY, 2, userId);
+
+        when(documentIngestionService.ingest(any(), eq(userId))).thenReturn(record);
+
+        mockMvc.perform(multipart("/api/documents/upload").file(file)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isCreated())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.filename", equalTo("handbook.pdf")))
+                .andExpect(jsonPath("$.status", equalTo("READY")));
+
+        verify(documentIngestionService).ingest(any(), eq(userId));
     }
 
     // ------------------------------------------------------------------------
