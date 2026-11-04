@@ -109,3 +109,77 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+/* Login page: a centred card. Only the login page has a password field. */
+#root:has(input[type='password']) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  margin: 0;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  background:
+    radial-gradient(900px 500px at 10% -10%, #2a2d6b66, transparent),
+    linear-gradient(160deg, #0b0c1a, #121438);
+}
+
+#root:has(input[type='password']) > :has(input[type='password']) {
+  width: 100%;
+  max-width: 380px;
+  padding: 1.75rem 1.75rem 1.5rem;
+  box-sizing: border-box;
+  border: 1px solid #2c2f5c;
+  border-radius: 16px;
+  background: #171932f2;
+  box-shadow: 0 20px 60px #0009;
+  color: #e8e9ff;
+}
+
+#root:has(input[type='password']) h1 {
+  margin: 0;
+  background: linear-gradient(90deg, #7c6cff, #4cc9f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 2rem;
+}
+
+#root:has(input[type='password']) form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+#root:has(input[type='password']) input {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #2c2f5c;
+  border-radius: 10px;
+  background: #0f1020;
+  color: #e8e9ff;
+  font-size: 1rem;
+}
+
+#root:has(input[type='password']) input:focus {
+  border-color: transparent;
+  outline: 2px solid #7c6cff;
+}
+
+#root:has(input[type='password']) button {
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #7c6cff, #4cc9f0);
+  color: #0b0c1a;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#root:has(input[type='password']) button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
