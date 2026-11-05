@@ -50,3 +50,5 @@ docker compose logs rag-postgres
 docker compose restart rag-backend
 docker compose down -v
 docker compose up -d --build
+## Verification Note
+- Verified demo fallback instructions and service health checks.
