@@ -28,7 +28,13 @@ export default function Login() {
 
   return (
     <div style={{ maxWidth: 360, margin: '48px auto' }}>
-      <h1>Login</h1>
+      <h1 style={{ textAlign: 'center', fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+        Enterprise RAG Assistant
+      </h1>
+      <p style={{ textAlign: 'center', color: '#9a9dc8', marginBottom: '1.5rem' }}>
+        Sign in to your account
+      </p>
+      
       <form onSubmit={handleSubmit}>
         <input
           type="email"
