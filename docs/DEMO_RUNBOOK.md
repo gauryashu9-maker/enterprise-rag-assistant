@@ -34,7 +34,30 @@ To cleanly stop containers and free system resources:
 docker compose down
 ```
 
+
 ### Service Health Verification Checklist
-- ag-postgres: Port 5432 (pgvector active)
-- ag-backend: Port 8080 (/actuator/health UP)
-- ag-frontend: Port 80 (Nginx static bundle served)
+- 
+ag-postgres: Port 5432 (pgvector active)
+- 
+ag-backend: Port 8080 (/actuator/health UP)
+- 
+ag-frontend: Port 80 (Nginx static bundle served)
+
+---
+
+## 6. Docker Troubleshooting & Fallback Recovery
+
+If any container encounters issues during runtime or demonstration, follow these quick recovery steps:
+
+### Scenario A: Port Conflicts (Port 8080 or 5432 in use)
+Identify and terminate the occupying background PID:
+```bash
+netstat -ano | findstr :8080
+netstat -ano | findstr :5432
+taskkill /PID <PID> /F
+
+docker compose logs rag-postgres
+docker compose restart rag-backend
+docker compose down -v
+docker compose up -d --build
+

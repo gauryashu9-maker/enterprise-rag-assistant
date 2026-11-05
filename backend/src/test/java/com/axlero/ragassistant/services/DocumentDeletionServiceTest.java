@@ -39,10 +39,14 @@ class DocumentDeletionServiceTest {
         DocumentRecord document = new DocumentRecord(
                 "policy.pdf", "application/pdf", 1024, DocumentStatus.READY, 2, ownerId);
         when(repository.findByIdAndUploadedBy(documentId, ownerId)).thenReturn(Optional.of(document));
+        when(repository.findByIdForUpdate(documentId)).thenReturn(Optional.of(document));
 
         service.deleteDocument(documentId, owner);
 
+        // The row is locked first, so the recovery worker cannot re-add vectors
+        // between the vector delete and the record delete.
         InOrder inOrder = inOrder(vectorStore, repository);
+        inOrder.verify(repository).findByIdForUpdate(documentId);
         inOrder.verify(vectorStore).delete(any(Filter.Expression.class));
         inOrder.verify(repository).delete(document);
     }
@@ -56,10 +60,12 @@ class DocumentDeletionServiceTest {
         DocumentRecord document = new DocumentRecord(
                 "user-doc.pdf", "application/pdf", 2048, DocumentStatus.READY, 5, ownerId);
         when(repository.findById(documentId)).thenReturn(Optional.of(document));
+        when(repository.findByIdForUpdate(documentId)).thenReturn(Optional.of(document));
 
         service.deleteDocument(documentId, admin);
 
         verify(repository).findById(documentId);
+        verify(repository).findByIdForUpdate(documentId);
         verify(vectorStore).delete(any(Filter.Expression.class));
         verify(repository).delete(document);
     }
@@ -77,6 +83,8 @@ class DocumentDeletionServiceTest {
 
         assertEquals("Document not found", exception.getMessage());
         verify(repository).findByIdAndUploadedBy(documentId, requestedOwnerId);
+        // An unauthorized caller must not even take the row lock.
+        verify(repository, never()).findByIdForUpdate(any(UUID.class));
         verify(vectorStore, never()).delete(any(Filter.Expression.class));
         verify(repository, never()).delete(any(DocumentRecord.class));
     }
@@ -93,6 +101,27 @@ class DocumentDeletionServiceTest {
                 () -> service.deleteDocument(missingId, admin));
 
         assertEquals("Document not found", exception.getMessage());
+        verify(repository, never()).findByIdForUpdate(any(UUID.class));
+        verify(vectorStore, never()).delete(any(Filter.Expression.class));
+        verify(repository, never()).delete(any(DocumentRecord.class));
+    }
+
+    @Test
+    void documentDeletedByAnotherRequestBeforeTheLockIsReportedAsNotFound() {
+        UUID ownerId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        AuthenticatedUser owner = new AuthenticatedUser(ownerId, "owner@example.com", Role.USER);
+        DocumentRecord document = new DocumentRecord(
+                "policy.pdf", "application/pdf", 1024, DocumentStatus.READY, 2, ownerId);
+        when(repository.findByIdAndUploadedBy(documentId, ownerId)).thenReturn(Optional.of(document));
+        // The row disappears between authorization and taking the lock.
+        when(repository.findByIdForUpdate(documentId)).thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> service.deleteDocument(documentId, owner));
+
+        assertEquals("Document not found", exception.getMessage());
         verify(vectorStore, never()).delete(any(Filter.Expression.class));
         verify(repository, never()).delete(any(DocumentRecord.class));
     }
@@ -105,6 +134,7 @@ class DocumentDeletionServiceTest {
         DocumentRecord document = new DocumentRecord(
                 "important.pdf", "application/pdf", 1024, DocumentStatus.READY, 2, ownerId);
         when(repository.findByIdAndUploadedBy(documentId, ownerId)).thenReturn(Optional.of(document));
+        when(repository.findByIdForUpdate(documentId)).thenReturn(Optional.of(document));
         doThrow(new RuntimeException("Vector database timeout"))
                 .when(vectorStore).delete(any(Filter.Expression.class));
 
