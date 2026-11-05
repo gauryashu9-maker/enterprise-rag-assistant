@@ -146,3 +146,5 @@ The backend (`com.axlero.ragassistant`) follows a strict layered architecture:
 - `.env` is git-ignored and never committed. Copy `.env.example` and set: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `OPENAI_API_KEY` (any word when using a local Ollama), `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` (must match the embedding model) and `JWT_SECRET` (Base64, for example `openssl rand -base64 48`).
 - The schema is managed by Flyway migrations in `backend/src/main/resources/db/migration`. Hibernate only validates it, so an entity change needs a new migration file.
 - API documentation: Swagger UI at `http://localhost:8080/swagger-ui/index.html` when the backend is running.
+### Operational & Troubleshooting Docs
+- For emergency container restarts, port conflict resolutions, and fallback procedures, see [DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md).
