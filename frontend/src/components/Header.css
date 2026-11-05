@@ -1,0 +1,43 @@
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: #171932;
+  border-bottom: 1px solid #2c2f5c;
+  color: #e8e9ff;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.header-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, #7c6cff, #4cc9f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  cursor: pointer;
+}
+
+.header-nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.header-nav button {
+  background: transparent;
+  border: none;
+  color: #9a9dc8;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.header-nav button:hover {
+  color: #e8e9ff;
+}
+
+.logout-btn {
+  color: #ff6b81 !important;
+  font-weight: bold;
+}
