@@ -4,7 +4,7 @@ body:has(.chat) #root {
   padding: 0;
 }
 
-/*.chat {
+.chat {
   --panel: #23233a;
   --panel-soft: #2c2c44;
   --border: #3d3d5c;
@@ -21,25 +21,6 @@ body:has(.chat) #root {
   box-sizing: border-box;
   color: var(--text);
   background: linear-gradient(135deg, #1e1e2f 0%, #2b2b40 100%);
-}*/
-
-.chat {
-  --panel: #23233a;
-  --panel-soft: #2c2c44;
-  --border: #3d3d5c;
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --accent: #a78bfa;
-  --accent-2: #67e8f9;
-  --danger: #f43f5e;
-  
-  display: flex;
-  gap: 1rem;
-  height: calc(100vh - 70px);
-  padding: 1rem;
-  box-sizing: border-box;
-  color: var(--text);
-  background-color: #f5f5f4; /* Creamy off-white canvas */
 }
 
 .chat-sidebar {
