@@ -55,12 +55,12 @@ export default function Documents() {
   }, [])
 
   return (
-    <div style={{ maxWidth: 1000, margin: '32px auto', padding: '0 24px', color: '#e2e8f0' }}>
-      <h1 style={{ color: '#a78bfa', marginBottom: '1.5rem', fontSize: '2rem' }}>Documents</h1>
+    <div style={{ maxWidth: 1000, margin: '32px auto', padding: '0 24px', color: '#1e1e2f' }}>
+      <h1 style={{ color: '#1e1e2f', marginBottom: '1.5rem', fontSize: '2rem' }}>Documents</h1>
 
-      {loading && <p style={{ color: '#94a3b8' }}>Loading documents...</p>}
+      {loading && <p style={{ color: '#64748b' }}>Loading documents...</p>}
       {error && <p style={{ color: '#f43f5e' }}>{error}</p>}
-      {!loading && !error && documents.length === 0 && <p style={{ color: '#94a3b8' }}>No documents yet.</p>}
+      {!loading && !error && documents.length === 0 && <p style={{ color: '#64748b' }}>No documents yet.</p>}
 
       {!loading && !error && documents.length > 0 && (
         <div style={{ backgroundColor: '#23233a', borderRadius: '12px', border: '1px solid #3d3d5c', overflow: 'hidden' }}>
