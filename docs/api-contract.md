@@ -276,12 +276,12 @@ Notes for the frontend:
 
 ## Authentication
 
-**Authentication endpoints are planned.** JWT authentication for protected endpoints is implemented; until login and registration exist, the frontend uses mock auth.
+**Authentication endpoints are implemented.** `POST /api/auth/register` and `POST /api/auth/login` are live, and JWT authentication for protected endpoints is implemented. The frontend uses the real login by default; mock auth is only used when `VITE_USE_MOCK_AUTH=true`.
 
 | Item | Status |
 |---|---|
-| `POST /api/auth/login` | Planned |
-| `POST /api/auth/register` | Planned |
+| `POST /api/auth/login` | Implemented |
+| `POST /api/auth/register` | Implemented |
 | JWT authentication on protected endpoints | Implemented |
 | Owner-scoped document access, ADMIN can manage all documents | Planned |
 | 401 response for missing, invalid, or expired bearer tokens | Implemented |
