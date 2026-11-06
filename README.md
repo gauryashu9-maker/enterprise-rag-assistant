@@ -146,3 +146,13 @@ The backend (`com.axlero.ragassistant`) follows a strict layered architecture:
 - `.env` is git-ignored and never committed. Copy `.env.example` and set: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `OPENAI_API_KEY` (any word when using a local Ollama), `AI_BASE_URL`, `AI_CHAT_MODEL`, `AI_EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` (must match the embedding model) and `JWT_SECRET` (Base64, for example `openssl rand -base64 48`).
 - The schema is managed by Flyway migrations in `backend/src/main/resources/db/migration`. Hibernate only validates it, so an entity change needs a new migration file.
 - API documentation: Swagger UI at `http://localhost:8080/swagger-ui/index.html` when the backend is running.
+
+## Troubleshooting
+
+If you encounter issues while running the project locally, check the following common scenarios:
+
+- **Port 8080 already in use:** This usually happens if an old Docker container or a previous Java process is still running in the background. 
+  - Stop old containers: `docker ps` and `docker stop <container_id>`
+  - Kill the local process (Windows): `netstat -ano | findstr :8080` then `taskkill /F /PID <process_id>`
+- **Database connection refused:** Ensure the PostgreSQL container is running properly. Run `docker compose up -d postgres` and check `docker ps` to confirm it says `healthy`.
+- **Ollama model missing:** If the AI returns fallback responses unexpectedly, ensure the models are pulled by running `ollama pull qwen2.5:1.5b` and `ollama pull nomic-embed-text`.
