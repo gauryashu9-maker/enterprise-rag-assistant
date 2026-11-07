@@ -33,6 +33,16 @@ To cleanly stop containers and free system resources:
 ```bash
 docker compose down
 ```
+
+
+### Service Health Verification Checklist
+- 
+ag-postgres: Port 5432 (pgvector active)
+- 
+ag-backend: Port 8080 (/actuator/health UP)
+- 
+ag-frontend: Port 80 (Nginx static bundle served)
+
 ---
 
 ## 6. Docker Troubleshooting & Fallback Recovery
@@ -50,3 +60,4 @@ docker compose logs rag-postgres
 docker compose restart rag-backend
 docker compose down -v
 docker compose up -d --build
+
