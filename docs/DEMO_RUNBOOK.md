@@ -61,3 +61,8 @@ docker compose restart rag-backend
 docker compose down -v
 docker compose up -d --build
 
+
+### Pre-Demo Environment Reset
+- To ensure an isolated, fresh state before presentations, purge volumes and rebuild:
+  docker compose down -v
+  docker compose up -d --build
