@@ -66,3 +66,11 @@ docker compose up -d --build
 - To ensure an isolated, fresh state before presentations, purge volumes and rebuild:
   docker compose down -v
   docker compose up -d --build
+
+### Real-Time Service Log Monitoring
+- Stream live logs for all running containers during presentation:
+  docker compose logs -f
+- Filter and debug backend application logs:
+  docker compose logs -f backend
+- Verify PostgreSQL database connection logs:
+  docker compose logs -f postgres
