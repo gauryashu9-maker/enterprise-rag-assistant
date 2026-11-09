@@ -66,3 +66,9 @@ docker compose up -d --build
 - To ensure an isolated, fresh state before presentations, purge volumes and rebuild:
   docker compose down -v
   docker compose up -d --build
+
+### Resource Utilization Checks
+- Inspect live CPU and memory usage to prevent out-of-memory errors during live queries:
+  docker stats --no-stream
+- Inspect active processes inside running containers:
+  docker compose top
