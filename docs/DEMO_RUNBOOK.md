@@ -72,3 +72,9 @@ docker compose up -d --build
   docker stats --no-stream
 - Inspect active processes inside running containers:
   docker compose top
+
+### Single-Service Quick Recovery
+- Restart a specific misbehaving container without stopping the entire stack:
+  docker compose restart backend
+- Force recreate an individual container without affecting dependencies:
+  docker compose up -d --no-deps --force-recreate backend
