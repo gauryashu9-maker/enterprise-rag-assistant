@@ -156,3 +156,11 @@ If you encounter issues while running the project locally, check the following c
   - Kill the local process (Windows): `netstat -ano | findstr :8080` then `taskkill /F /PID <process_id>`
 - **Database connection refused:** Ensure the PostgreSQL container is running properly. Run `docker compose up -d postgres` and check `docker ps` to confirm it says `healthy`.
 - **Ollama model missing:** If the AI returns fallback responses unexpectedly, ensure the models are pulled by running `ollama pull qwen2.5:1.5b` and `ollama pull nomic-embed-text`.
+
+## Contributors
+This project was developed by the Axlero Project 2 Team:
+- Yashu:  (Team Lead / RAG Engine & Chat UI)
+- Aryan (Frontend)
+- Meghana (Data, Errors & Security)
+- Aniket (Ingestion Pipeline)
+- Anuj (DevOps & OpenAPI)
