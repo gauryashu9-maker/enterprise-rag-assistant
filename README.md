@@ -51,7 +51,7 @@ docker compose up -d            # starts Postgres + pgvector
 cd backend && mvn spring-boot:run
 ```
 
-The app requires `JWT_SECRET` to contain a Base64-encoded cryptographically random secret of at least 32 bytes and will not start without it (generate one using `openssl rand -base64 48`). The application Base64-decodes this secret before using it as the signing key (HMAC-SHA256). Only `/api/auth/**`, `/v3/api-docs/**`, `/swagger-ui/**`, and `/actuator/health` are public. All other requests require a bearer JWT; the login endpoint will be added by the separate Security B task.
+The app requires `JWT_SECRET` to contain a Base64-encoded cryptographically random secret of at least 32 bytes and will not start without it (generate one using `openssl rand -base64 48`). The application Base64-decodes this secret before using it as the signing key (HMAC-SHA256). Only `/api/auth/**`, `/v3/api-docs/**`, `/swagger-ui/**`, and `/actuator/health` are public. All other requests require a bearer JWT, obtained from `POST /api/auth/login` (accounts are created with `POST /api/auth/register`).
 
 Smoke test the LLM connection: `GET http://localhost:8080/api/ai/ping`
 
@@ -80,9 +80,17 @@ Controllers take/return DTO Records and contain no business logic. Services hold
 
 ## Local Environment Verification & Credentials
 
-### Default Credentials
-- **Admin**: `admin@example.com` / `password`
-- **User**: `user@example.com` / `password`
+### Default Credentials (dev profile)
+
+When the backend runs with the `dev` profile, `DevUserSeeder` seeds these accounts if they don't exist (local development only):
+
+| Email | Password | Role | Notes |
+|---|---|---|---|
+| `owner@example.com` | `secret123` | USER | Owner of the seeded HR policy chunks (`DevDataSeeder.DEV_OWNER_ID`). Ask the chat about leave or remote work |
+| `other@example.com` | `secret123` | USER | Owner of the seeded exec-bonus chunk (`DEV_OTHER_OWNER_ID`). Shows that users only retrieve their own chunks |
+| `admin@example.com` | `admin12345` | ADMIN | Admin account for managing documents |
+
+The seeded chunks are in the vector store only, so they appear in chat answers, not in the Documents list. Seeding them calls the embedding API, so the dev profile needs an embedding key or Ollama. Without the `dev` profile, create an account with `POST /api/auth/register`.
 
 ### Prerequisites & Verification Notes
 - **Docker**: PostgreSQL with `pgvector` extension running on port 5432.
