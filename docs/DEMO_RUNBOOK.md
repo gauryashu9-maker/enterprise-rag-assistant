@@ -78,3 +78,9 @@ docker compose up -d --build
   docker compose restart backend
 - Force recreate an individual container without affecting dependencies:
   docker compose up -d --no-deps --force-recreate backend
+
+### Network & Port Connectivity Checks
+- Verify exposed host ports for running services before starting the demo:
+  docker compose port backend 8080
+- Inspect active Docker networks and bridge connectivity:
+  docker network ls
