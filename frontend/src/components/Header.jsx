@@ -7,7 +7,9 @@ export default function Header() {
 
   const handleLogout = () => {
     localStorage.removeItem('token')
-    navigate('/login')
+    localStorage.removeItem('email')
+    localStorage.removeItem('role')
+    navigate('/') //redirected to home page
   }
 
   return (
