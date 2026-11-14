@@ -2,50 +2,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  background-color: #171932;
-  border-bottom: 1px solid #2c2f5c;
-  color: #e8e9ff;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
-.header-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  background: linear-gradient(90deg, #7c6cff, #4cc9f0);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  cursor: pointer;
-}
-
-.header-nav {
-  display: flex;
-  gap: 1rem;
-}
-
-.header-nav button {
-  background: transparent;
-  border: none;
-  color: #9a9dc8;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.header-nav button:hover {
-  color: #e8e9ff;
-}
-
-.logout-btn {
-  color: #ff6b81 !important;
-  font-weight: bold;
-} */
-
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 0 2rem;
   height: 70px;
   background-color: #1a1a2e;
@@ -85,4 +41,76 @@
 .logout-btn {
   color: #f43f5e !important;
   font-weight: 600;
+}
+*/
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  height: 70px;
+  /* Frosted glass effect for the header */
+  background: rgba(23, 25, 50, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(167, 139, 250, 0.15);
+  color: #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, #a78bfa, #4cc9f0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+.header-nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* The Glass Pill style for Documents and Chat */
+.header-nav button:not(.logout-btn) {
+  padding: 8px 20px;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.header-nav button:not(.logout-btn):hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+/* The White Oval style for Log Out (like the Login button on homepage) */
+.logout-btn {
+  padding: 8px 24px;
+  border-radius: 30px;
+  background: #ffffff !important;
+  color: #0b0c1a !important;
+  font-weight: 800 !important;
+  font-size: 0.9rem !important;
+  border: none !important;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+  background: #e2e8f0 !important;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
 }
