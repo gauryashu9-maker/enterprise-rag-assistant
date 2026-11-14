@@ -1,11 +1,7 @@
 import api from './axiosClient.js'
 
-// Mock mode stays ON until the document endpoints exist
-// (planned in docs/api-contract.md, not implemented yet).
-// Set VITE_USE_MOCK_API=false in your local .env to try the real call.
 const USE_MOCK = Boolean(import.meta?.env?.VITE_USE_MOCK_API === 'true')
 
-// Same shape as DocumentResponse in docs/api-contract.md
 const MOCK_DOCUMENTS = [
   {
     id: '8ca57f15-4358-4bc6-a8af-614eab659cf4',
@@ -38,11 +34,6 @@ const MOCK_DOCUMENTS = [
   },
 ]
 
-/**
- * Extracts human-readable error text from an API error response,
- * giving priority to RFC 7807 ProblemDetail 'detail', then error.message,
- * with a fallback default.
- */
 export function getUploadErrorMessage(error) {
   const detail = error?.response?.data?.detail
   if (typeof detail === 'string' && detail.trim().length > 0) {
@@ -78,6 +69,7 @@ export async function uploadDocument(file, client = api) {
 
   const formData = new FormData()
   formData.append('file', file)
+  
   const { data } = await client.post('/documents/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
