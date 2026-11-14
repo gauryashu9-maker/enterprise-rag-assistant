@@ -40,23 +40,34 @@ export default function Documents() {
   
   const fileInputRef = useRef(null)
 
-  async function loadDocuments() {
-    try {
-      setLoading(true)
-      const data = await listDocuments()
-      if (!Array.isArray(data)) {
-        throw new Error('Invalid response while loading documents')
-      }
-      setDocuments(data)
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to load documents')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    loadDocuments()
+    let isMounted = true
+
+    async function fetchDocuments() {
+      try {
+        const data = await listDocuments()
+        if (isMounted) {
+          if (!Array.isArray(data)) {
+            throw new Error('Invalid response while loading documents')
+          }
+          setDocuments(data)
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err.response?.data?.detail || err.message || 'Failed to load documents')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchDocuments()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   async function handleFileChange(event) {
@@ -68,7 +79,12 @@ export default function Documents() {
     try {
       await uploadDocument(file)
       event.target.value = null // Reset input
-      await loadDocuments() // Reload to show PROCESSING/READY status
+      
+      // Manually refresh the list after upload
+      const data = await listDocuments()
+      if (Array.isArray(data)) {
+        setDocuments(data)
+      }
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Upload failed')
     } finally {
