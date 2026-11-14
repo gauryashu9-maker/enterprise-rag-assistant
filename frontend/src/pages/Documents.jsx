@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { getUploadErrorMessage, listDocuments, uploadDocument } from '../api/documentsApi.js'
+import { useEffect, useState, useRef } from 'react'
+import { listDocuments, uploadDocument } from '../api/documentsApi.js'
 
 const STATUS_COLORS = {
   UPLOADED: '#94a3b8',
@@ -37,41 +37,40 @@ export default function Documents() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState('')
-  const [uploadSuccess, setUploadSuccess] = useState('')
+  
+  const fileInputRef = useRef(null)
+
+  async function loadDocuments() {
+    try {
+      setLoading(true)
+      const data = await listDocuments()
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response while loading documents')
+      }
+      setDocuments(data)
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Failed to load documents')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      try {
-        const data = await listDocuments()
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid response while loading documents')
-        }
-        setDocuments(data)
-      } catch (err) {
-        setError(getUploadErrorMessage(err) || 'Failed to load documents')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    loadDocuments()
   }, [])
 
-  async function handleFileUpload(e) {
-    const file = e.target.files?.[0]
+  async function handleFileChange(event) {
+    const file = event.target.files[0]
     if (!file) return
 
     setUploading(true)
-    setUploadError('')
-    setUploadSuccess('')
-
+    setError('')
     try {
-      const created = await uploadDocument(file)
-      setUploadSuccess(`"${file.name}" uploaded successfully.`)
-      setDocuments((prev) => [created, ...prev.filter((d) => d.id !== created.id)])
-      e.target.value = ''
+      await uploadDocument(file)
+      event.target.value = null // Reset input
+      await loadDocuments() // Reload to show PROCESSING/READY status
     } catch (err) {
-      setUploadError(getUploadErrorMessage(err))
+      setError(err.response?.data?.detail || err.message || 'Upload failed')
     } finally {
       setUploading(false)
     }
@@ -79,88 +78,43 @@ export default function Documents() {
 
   return (
     <div style={{ maxWidth: 1000, margin: '32px auto', padding: '0 24px', color: '#e2e8f0' }}>
-      <h1 style={{ color: '#a78bfa', marginBottom: '1.5rem', fontSize: '2rem' }}>Documents</h1>
-
-      {/* Upload UI section */}
-      <div
-        style={{
-          backgroundColor: '#23233a',
-          borderRadius: '12px',
-          border: '1px solid #3d3d5c',
-          padding: '20px',
-          marginBottom: '24px',
-        }}
-      >
-        <h2 style={{ fontSize: '1.1rem', marginBottom: '8px', color: '#f8fafc' }}>Upload Document</h2>
-        <p style={{ fontSize: '0.875rem', color: '#94a3b8', marginBottom: '16px' }}>
-          Select a PDF or TXT file to upload and ingest into the knowledge base.
-        </p>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <label
-            style={{
-              display: 'inline-block',
-              backgroundColor: uploading ? '#4b5563' : '#6366f1',
-              color: 'white',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-            }}
-          >
-            {uploading ? 'Uploading...' : 'Choose File'}
-            <input
-              type="file"
-              accept=".pdf,.txt"
-              onChange={handleFileUpload}
-              disabled={uploading}
-              style={{ display: 'none' }}
-            />
-          </label>
-          <span style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
-            Supported formats: .pdf, .txt (Max 25 MB)
-          </span>
-        </div>
-
-        {uploadError && (
-          <div
-            style={{
-              marginTop: '12px',
-              padding: '10px 14px',
-              backgroundColor: '#451a1a',
-              border: '1px solid #f43f5e',
-              borderRadius: '8px',
-              color: '#fca5a5',
-              fontSize: '0.875rem',
-            }}
-          >
-            {uploadError}
-          </div>
-        )}
-
-        {uploadSuccess && (
-          <div
-            style={{
-              marginTop: '12px',
-              padding: '10px 14px',
-              backgroundColor: '#064e3b',
-              border: '1px solid #10b981',
-              borderRadius: '8px',
-              color: '#6ee7b7',
-              fontSize: '0.875rem',
-            }}
-          >
-            {uploadSuccess}
-          </div>
-        )}
+      
+      {/* Header with Upload Button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h1 style={{ color: '#a78bfa', margin: 0, fontSize: '2rem' }}>Documents</h1>
+        
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          style={{ display: 'none' }} 
+          accept=".pdf,.txt"
+        />
+        
+        <button 
+          onClick={() => fileInputRef.current.click()} 
+          disabled={uploading}
+          style={{
+            background: 'linear-gradient(90deg, #a78bfa, #67e8f9)',
+            color: '#1a1a2e',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+            fontSize: '1rem',
+            cursor: uploading ? 'not-allowed' : 'pointer',
+            opacity: uploading ? 0.7 : 1
+          }}
+        >
+          {uploading ? 'Uploading...' : '+ Upload Document'}
+        </button>
       </div>
 
-      {loading && <p style={{ color: '#94a3b8' }}>Loading documents...</p>}
+      {loading && documents.length === 0 && <p style={{ color: '#94a3b8' }}>Loading documents...</p>}
       {error && <p style={{ color: '#f43f5e' }}>{error}</p>}
-      {!loading && !error && documents.length === 0 && <p style={{ color: '#94a3b8' }}>No documents yet.</p>}
+      {!loading && !error && documents.length === 0 && <p style={{ color: '#94a3b8' }}>No documents yet. Upload one to get started!</p>}
 
-      {!loading && !error && documents.length > 0 && (
+      {documents.length > 0 && (
         <div style={{ backgroundColor: '#23233a', borderRadius: '12px', border: '1px solid #3d3d5c', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ backgroundColor: '#1a1a2e', borderBottom: '1px solid #3d3d5c' }}>
