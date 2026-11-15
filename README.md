@@ -172,3 +172,8 @@ This project was developed by the Axlero Project 2 Team:
 - Meghana (Data, Errors & Security)
 - Aniket (Ingestion Pipeline)
 - Anuj (DevOps & OpenAPI)
+
+## Future Scope
+- Integrate larger enterprise LLMs (e.g., GPT-4 or Llama-3) for complex reasoning.
+- Build an admin dashboard for document management and user analytics.
+- Implement a UI drag-and-drop feature for bulk document uploads.
